@@ -1,0 +1,58 @@
+<html><body><pre>For a given polygon g, print "1" if g is a convex polygon, "0" otherwise. Here, in a convex polygon, all interior angles are less than or equal to 180 degrees.
+
+g is represented by a sequence of points p1, p2,..., pn where line segments connecting pi and pi+1 (1 ≤ i ≤ n-1) are sides of the polygon. The line segment connecting pn and p1 is also a side of the polygon.
+
+Constraints
+
+* 3 ≤ n ≤ 100
+* -10000 ≤ xi, yi ≤ 10000
+* No point of the polygon will occur more than once.
+* Two sides of the polygon can intersect only at a common endpoint.
+
+Input
+
+g is given by coordinates of the points p1,..., pn in the following format:
+
+
+n
+x1 y1
+x2 y2
+:
+xn yn
+
+
+The first integer n is the number of points. The coordinate of a point pi is given by two integers xi and yi. The coordinates of points are given in the order of counter-clockwise visit of them.
+
+Output
+
+Print "1" or "0" in a line.
+
+Examples
+
+Input
+
+4
+0 0
+3 1
+2 3
+0 3
+
+
+Output
+
+1
+
+
+Input
+
+5
+0 0
+2 0
+1 1
+2 2
+0 2
+
+
+Output
+
+0</pre></body></html>

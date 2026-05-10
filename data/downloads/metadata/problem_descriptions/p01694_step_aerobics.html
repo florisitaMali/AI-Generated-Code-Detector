@@ -1,0 +1,85 @@
+<html><body><pre>Step up and down
+
+Kazuki, commonly known as Kerr, who attends JAG University, was invited by your friend this summer to participate in the ICPC (International Collegiate Potchari Contest). ICPC is a sports contest and requires a high degree of athletic ability. However, Mr. Kerr was always in front of the computer, and he was so lacking in exercise that he was tired even if he moved a little. Therefore, Kerr decided to start an easy-to-start exercise, "stepping up and down," as the first step to achieve good results with ICPC.
+
+As the name suggests, stepping up and down is a simple exercise that simply repeats going up and down between the step and the floor. However, in stepping up and down, the effect cannot be obtained unless the feet are raised and lowered correctly. Correct ascent and descent is the movement of the foot that satisfies either of the following two types.
+
+* From the state where both feet are on the floor, the left foot and the right foot are raised on the stepping stone, and both feet are on the stepping stone. Either the left foot or the right foot may be raised first.
+* From the state where both feet are on the platform, the left foot and the right foot are lowered to the floor, and both feet are on the floor. Either the left foot or the right foot may be lowered first.
+
+
+
+As can be seen from the above, raising and lowering only one leg continuously from the state of being on the floor or stepping stone does not result in correct raising and lowering. In the stepping up / down movement, when any of the above correct up / down movements is satisfied, it is counted as one time, and the larger the count number, the more effective the effect can be obtained. Note that even if you don't go back and forth between the floor and the platform, it counts as one only one way.
+
+You want your teammate, Kerr, to be as strong as possible. So you decided to write a program and check if Kerr was skipping the step up and down. Since the information of the foot that Kerr moved by going up and down the platform is given, find the number of times that he went up and down correctly. However, it is assumed that both feet are on the floor before going up and down the platform.
+
+Input
+
+The input consists of multiple data sets, and the number of data sets contained in one input is 150 or less. The format of each data set is as follows.
+
+> $ n $
+> $ f_1 $ $ f_2 $ ... $ f_n $
+
+In the first line, the integer $ n $ ($ 1 \ le n \ le 100 $) representing the number of times the foot is moved is given. In the second line, $ f_i $, which is a character string representing the movement of the foot, is given in chronological order by $ n $, separated by spaces. $ f_i $ is one of the following four types of character strings.
+
+* "lu": Raise your left foot to the platform.
+* "ru": Raise your right foot to the platform.
+* "ld": Lower your left foot to the floor.
+* "rd": Lower your right foot to the floor.
+
+
+
+It can be assumed that no action is input that lowers the foot on the floor or raises the foot on the platform.
+
+The line where $ n $ is 0 indicates the end of input. Do not process this data.
+
+Output
+
+For each dataset, output the number of correct steps up and down in one line. Note that if you do not output a line break at the end of each line, or if you output unnecessary characters, it will be judged as an incorrect answer.
+
+Sample Input
+
+
+Four
+lu ru ld rd
+Four
+lu ld lu ru
+1
+lu
+Ten
+ru lu ld rd ru rd ru lu lu rd ld
+0
+
+Output for Sample Input
+
+
+2
+1
+0
+Four
+
+
+
+
+
+Example
+
+Input
+
+4
+lu ru ld rd
+4
+lu ld lu ru
+1
+lu
+10
+ru lu ld rd ru rd ru lu rd ld
+0
+
+
+Output
+
+2
+1
+0
+4</pre></body></html>

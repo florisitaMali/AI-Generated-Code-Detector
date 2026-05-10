@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Code Detector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+
+    <!-- ── Top bar ── -->
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <a class="brand" href="#">
+          <span class="brand__mark">◐</span>
+          <span class="brand__text">
+            <strong>AI Code Detector</strong>
+            <small>graduation project</small>
+          </span>
+        </a>
+        <nav class="topbar__nav">
+          <span id="api-status" class="status">initialising…</span>
+        </nav>
+      </div>
+    </header>
+
+    <!-- ── Main ── -->
+    <main class="container main">
+
+      <section class="hero">
+        <h1>Detect AI-generated code</h1>
+        <p>
+          Paste a competitive-programming submission below. The ensemble scorer
+          returns a <strong>risk score 0–1</strong>, a policy decision
+          (<strong>accept</strong> · <strong>review</strong> · <strong>hold</strong>),
+          per-component sub-scores, and human-readable detection signals.
+          Press <kbd style="font-family:monospace;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);border-radius:4px;padding:1px 5px;font-size:12px;">Ctrl+Enter</kbd> to analyze.
+        </p>
+      </section>
+
+      <section class="grid">
+
+        <!-- ── Left: Submission ── -->
+        <article class="card" id="submission-card">
+          <header class="card__header">
+            <h2>Submission</h2>
+            <div class="controls">
+              <label class="field">
+                <span>Language</span>
+                <select id="language">
+                  <option value="python">Python</option>
+                  <option value="cpp">C++</option>
+                  <option value="java">Java</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Problem ID <span style="opacity:.5">(optional)</span></span>
+                <input id="problem-id" type="text" placeholder="p00001" />
+              </label>
+            </div>
+          </header>
+
+          <div class="editor">
+            <div class="editor__gutter" id="gutter">1</div>
+            <textarea
+              id="code"
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              placeholder="// paste source code here…"
+            ></textarea>
+          </div>
+
+          <footer class="card__footer">
+            <div class="meta">
+              <span><span id="meta-lines">0</span> lines</span>
+              <span><span id="meta-chars">0</span> chars</span>
+            </div>
+            <div class="actions">
+              <button id="sample-btn" class="btn btn--ghost" type="button">⌗ Sample</button>
+              <button id="clear-btn"  class="btn btn--ghost" type="button">✕ Clear</button>
+              <button id="analyze-btn" class="btn btn--primary" type="button">
+                <span class="btn__label">⚡ Analyze</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+            </div>
+          </footer>
+        </article>
+
+        <!-- ── Right: Result ── -->
+        <article class="card result" id="result-card">
+          <header class="card__header">
+            <h2>Analysis</h2>
+            <span id="decision-badge" class="badge badge--idle">awaiting input</span>
+          </header>
+
+          <div class="result__body">
+
+            <!-- Gauge -->
+            <div class="gauge">
+              <svg viewBox="0 0 200 120" class="gauge__svg" aria-hidden="true">
+                <!-- zone fills -->
+                <path d="M10 110 A 90 90 0 0 1 84 22"  fill="none" stroke="rgba(0,255,163,0.15)"  stroke-width="14" stroke-linecap="butt"/>
+                <path d="M84 22 A 90 90 0 0 1 147 32"  fill="none" stroke="rgba(245,158,11,0.15)" stroke-width="14" stroke-linecap="butt"/>
+                <path d="M147 32 A 90 90 0 0 1 190 110" fill="none" stroke="rgba(255,46,136,0.15)" stroke-width="14" stroke-linecap="butt"/>
+                <!-- track -->
+                <path d="M10 110 A 90 90 0 0 1 190 110" class="gauge__track" fill="none" stroke-width="14" stroke-linecap="round"/>
+                <!-- active arc -->
+                <path
+                  id="gauge-arc"
+                  d="M10 110 A 90 90 0 0 1 190 110"
+                  class="gauge__arc"
+                  fill="none" stroke-width="14" stroke-linecap="round"
+                  stroke-dasharray="0 1000"
+                />
+                <!-- needle -->
+                <line id="gauge-needle" x1="100" y1="110" x2="100" y2="32"
+                  class="gauge__needle" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="100" cy="110" r="7" class="gauge__hub"/>
+              </svg>
+
+              <div class="gauge__readout">
+                <span id="risk-score" class="gauge__score">—</span>
+                <span class="gauge__label">AI-generation risk</span>
+              </div>
+
+              <div class="gauge__legend">
+                <span><i style="background:var(--accept)"></i>0–0.4 accept</span>
+                <span><i style="background:var(--review)"></i>0.4–0.7 review</span>
+                <span><i style="background:var(--hold)"></i>0.7–1.0 hold</span>
+              </div>
+            </div>
+
+            <!-- Component bars -->
+            <section class="components">
+              <h3>Component scores</h3>
+              <ul id="components" class="bars">
+                <li class="bar" data-key="statistical">
+                  <span class="bar__label">Stylometric</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
+                <li class="bar" data-key="codebert">
+                  <span class="bar__label">CodeBERT</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
+                <li class="bar" data-key="llm_judge">
+                  <span class="bar__label">LLM-judge</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
+              </ul>
+            </section>
+
+            <!-- Signals -->
+            <section class="signals">
+              <h3>Signals</h3>
+              <ul id="signals" class="signals__list">
+                <li class="signals__empty">Run an analysis to see detection signals.</li>
+              </ul>
+            </section>
+
+          </div>
+
+          <footer class="card__footer card__footer--end">
+            <small id="api-error" class="error" hidden></small>
+          </footer>
+        </article>
+
+      </section>
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer class="footer">
+      <div class="container">
+        <span>AI-Generated Code Detector · graduation project</span>
+        <span>API <code id="api-url">http://127.0.0.1:8000</code></span>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

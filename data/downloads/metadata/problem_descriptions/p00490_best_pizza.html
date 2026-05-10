@@ -1,0 +1,81 @@
+<html><body><pre>problem
+
+Chairman K is a regular customer of the JOI pizza shop in the center of JOI city. For some reason, he decided to start a life-saving life this month. So he wanted to order the pizza with the highest calories per dollar among the pizzas he could order at the JOI pizza store. Let's call such a pizza the "best pizza". The "best pizza" is not limited to one type.
+
+At JOI Pizza, you can freely choose from N types of toppings and order the ones placed on the basic dough. You cannot put more than one topping of the same type. You can also order a pizza that doesn't have any toppings on the dough. The price of the dough is $ A and the price of the toppings is $ B. The price of pizza is the sum of the price of the dough and the price of the toppings. That is, the price of a pizza with k types of toppings (0 ≤ k ≤ N) is A + k x B dollars. The total calorie of the pizza is the sum of the calories of the dough and the calories of the toppings placed.
+
+Create a program to find the number of calories per dollar for the "best pizza" given the price of the dough and the price of the toppings, and the calorie value of the dough and each topping.
+
+input
+
+The input consists of N + 3 lines.
+
+On the first line, one integer N (1 ≤ N ≤ 100) representing the number of topping types is written. On the second line, two integers A and B (1 ≤ A ≤ 1000, 1 ≤ B ≤ 1000) are written with a blank as a delimiter. A is the price of the dough and B is the price of the toppings. On the third line, one integer C (1 ≤ C ≤ 10000) representing the number of calories in the dough is written.
+
+On the 3 + i line (1 ≤ i ≤ N), one integer Di (1 ≤ Di ≤ 10000) representing the number of calories in the i-th topping is written.
+
+output
+
+Print the number of calories per dollar for the "best pizza" in one line. However, round down the numbers after the decimal point and output as an integer value.
+
+Input / output example
+
+Input example 1
+
+
+3
+12 2
+200
+50
+300
+100
+
+
+Output example 1
+
+
+37
+
+
+In I / O Example 1, with the second and third toppings, 200 + 300 + 100 = 600 calories gives a pizza of $ 12 + 2 x 2 = $ 16.
+This pizza has 600/16 = 37.5 calories per dollar. Since this is the "best pizza", we output 37, rounded down to the nearest whole number of 37.5.
+
+Input example 2
+
+
+Four
+20 3
+900
+300
+100
+400
+1300
+
+
+Output example 2
+
+
+100
+
+
+The question text and the data used for the automatic referee are the question text and the test data for scoring, which are created and published by the Japan Committee for Information Olympics.
+
+
+
+
+
+Example
+
+Input
+
+3
+12 2
+200
+50
+300
+100
+
+
+Output
+
+37</pre></body></html>

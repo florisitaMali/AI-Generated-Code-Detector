@@ -1,0 +1,63 @@
+<html><body><pre>You want to go on a trip with a friend. However, friends who have a habit of spending money cannot easily save travel expenses. I don't know when my friends will go on a trip if they continue their current lives. So, if you want to travel early, you decide to create a program to help your friends save in a planned manner.
+
+If you have a friend's pocket money of M yen and the money you spend in that month is N yen, you will save (M --N) yen in that month. Create a program that inputs the monthly income and expenditure information M and N and outputs the number of months it takes for the savings amount to reach the travel cost L. However, if your savings do not reach your travel expenses after 12 months, print NA.
+
+
+
+Input
+
+A sequence of multiple datasets is given as input. The end of the input is indicated by a single line of zeros. Each dataset is given in the following format:
+
+
+L
+M1 N1
+M2 N2
+::
+M12 N12
+
+
+The first line gives the travel cost L (1 ≤ L ≤ 1000000, integer). The next 12 lines are given the balance information for the i month, Mi, Ni (0 ≤ Mi, Ni ≤ 100000, Ni ≤ Mi, integer).
+
+The number of datasets does not exceed 1000.
+
+Output
+
+For each input dataset, print the number of months it takes for your savings to reach your travel costs on a single line.
+
+Example
+
+Input
+
+10000
+5000 3150
+5000 5000
+0 0
+5000 1050
+5000 3980
+5000 210
+5000 5000
+5000 5000
+0 0
+5000 2100
+5000 2100
+5000 2100
+29170
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 100000
+100000 70831
+0
+
+
+Output
+
+6
+NA</pre></body></html>

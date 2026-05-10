@@ -1,0 +1,88 @@
+<html><body><pre>Sorting algorithms for sorting data are basic algorithms indispensable in computer science. For example, as shown in the figure below, the operation of "sorting the elements of an array of integer values ​​in ascending order" is alignment.
+
+<image>
+
+
+Many alignment algorithms have been devised, but one of the basic algorithms is bubble sort. As an example, let's arrange an array of given integer values ​​in ascending order by bubble sort.
+
+<image>
+
+
+
+In bubble sort, each calculation step divides the array into "sorted parts" and "unsorted parts". Initially, the entire array will be the unsorted part.
+
+From the beginning of the unsorted part, compare the adjacent elements (green element in the figure) and swap them so that the larger value is to the right. If the two values ​​are equal, they will not be exchanged.
+
+<image>
+
+
+
+Repeat this process until the end of the unsorted part (white element in the figure). Finally, add the end to the sorted part (blue element in the figure) to complete one step.
+
+Repeat this step until the unsorted part has a length of 1.
+
+<image>
+
+
+<image>
+
+
+<image>
+
+
+
+When the length of the unsorted part becomes 1, the sorting process ends.
+
+Now, let's create a program that takes an array of n numbers as input, sorts the numbers in ascending order from the beginning of the array by the above bubble sort procedure, and outputs the number of exchanges of the required array elements. Please give me.
+
+
+
+Input
+
+A sequence of multiple datasets is given as input. The end of the input is indicated by a single line of zeros. Each dataset is given in the following format:
+
+
+n
+a1
+a2
+::
+an
+
+
+The first line gives the number n (1 ≤ n ≤ 100), and the following n lines give the i-th number ai (1 ≤ ai ≤ 1000000).
+
+The number of datasets does not exceed 20.
+
+Output
+
+Outputs the number of data element exchanges (integer) for each data set on one line.
+
+Example
+
+Input
+
+5
+5
+3
+2
+1
+4
+6
+1
+2
+3
+4
+5
+6
+3
+3
+2
+1
+0
+
+
+Output
+
+7
+0
+3</pre></body></html>

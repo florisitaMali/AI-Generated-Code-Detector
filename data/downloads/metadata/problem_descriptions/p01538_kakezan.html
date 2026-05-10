@@ -1,0 +1,75 @@
+<html><body><pre>Taro is an elementary school student who has just learned multiplication. Somehow, he likes multiplication, so when he sees numbers, he wants to multiply. He seems to like to do the following for integers greater than or equal to 0. (Processing flow)
+
+* Procedure 1. If a certain integer n greater than or equal to 0 is a single digit in decimal notation, the process ends there. Otherwise go to step 2
+* Step 2. When an integer n of 10 or more is displayed in decimal, it is possible to break it into two numbers by inserting a break between some digits (for example, 2012-> 20, 12). For possible cutting methods like this, multiply the two obtained numbers and set the largest one as the next n, and return to step 1. (For details, see "Supplementary information on step 2" below.)
+
+
+
+Taro seems to like this process, but I can't predict how many times step 2 should be repeated, and I think it may have to be done infinitely. So I asked Taro's older brother and college student how many times this step 2 should be done for an integer n greater than or equal to 0.
+
+Your job is to give Q integers greater than or equal to 0 N1 .. NQ, so find out how many steps 2 will be performed on each integer before the end of the process. If you need an infinite number of steps, output -1.
+
+Supplement on step 2
+
+You should also take into account those that have a 0 at the beginning of the digit as a result of the isolation.
+For example, when n = 1024, 1 * 024, 10 * 24, and 102 * 4 are calculated as 24,240,408, respectively, so 408 is selected and this is the next n.
+
+Constraints
+
+> 1 ≤ Q ≤ 100
+> 0 ≤ Ni ≤ 106
+>
+
+Input
+
+> Q
+> N1
+> N2
+> ...
+> NQ
+>
+
+* Q represents the number of integers greater than or equal to 0 given
+* Ni is an integer greater than or equal to 0 that Taro is interested in, and represents the i-th one.
+
+Output
+
+Output Q integers separated by line breaks
+
+> R1
+> R2
+> ..
+> RQ
+>
+
+* Ri represents the number of times step 2 is executed before the processing is completed for Ni.
+* Ri is -1 if step 2 needs to be performed infinitely for Ni
+
+Examples
+
+Input
+
+3
+9
+99
+123
+
+
+Output
+
+0
+2
+3
+
+
+Input
+
+2
+999999
+1000000
+
+
+Output
+
+12
+1</pre></body></html>
