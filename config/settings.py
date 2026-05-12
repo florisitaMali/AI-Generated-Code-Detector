@@ -37,6 +37,8 @@ AI_GENERATION_MODELS = [
 ]
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+# Seconds between OpenAI Chat Completions requests (per client; lowers RPM/TPM burst).
+OPENAI_MIN_INTERVAL = float(os.getenv("OPENAI_MIN_INTERVAL", "4.0"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 HF_TOKEN = os.getenv("HF_TOKEN", "")

@@ -26,13 +26,14 @@ from config.settings import (
     GOOGLE_API_KEY,
     HF_TOKEN,
     OPENAI_API_KEY,
+    OPENAI_MIN_INTERVAL,
 )
 
 LANG_DISPLAY = {"cpp": "C++", "python": "Python", "java": "Java"}
 
-# Rate-limit: serial requests to stay within provider quotas.
-# OpenAI Tier-1: 500 RPM for gpt-4o-mini (safe at 1 concurrent + small sleep).
-# Google free: 15 RPM → 1 concurrent + 5 s sleep.
+# Rate-limiting: semaphore = 1 concurrent call per provider. OpenAI also uses
+# OPENAI_MIN_INTERVAL from .env (default 4s). If your org shows low RPM (e.g. 3/min),
+# set OPENAI_MIN_INTERVAL≈ceil(60/RPM)+1 before each request (including retries).
 SEMAPHORES = {
     "openai": asyncio.Semaphore(1),
     "anthropic": asyncio.Semaphore(1),
@@ -43,7 +44,20 @@ SEMAPHORES = {
 RETRY_ATTEMPTS = 4
 RETRY_BACKOFF = 2.0
 GEMINI_MIN_INTERVAL = 5.0
-OPENAI_MIN_INTERVAL = 1.5   # ~40 RPM — well within Tier-1 500 RPM limit
+
+
+def _openai_error_meta(response: httpx.Response) -> tuple[str | None, float]:
+    """Parse JSON error.code and optional 'try again in Ns' from the response body."""
+    text = response.text or ""
+    code = None
+    try:
+        err = response.json().get("error") or {}
+        code = err.get("code") or err.get("type")
+    except Exception:
+        pass
+    m = re.search(r"try again in (\d+)\s*s", text, re.I)
+    try_again = float(m.group(1)) if m else 0.0
+    return code, try_again
 
 
 def load_problem_statements(metadata_dir: Path) -> dict[str, str]:
@@ -97,6 +111,7 @@ async def call_openai(
         return None
     async with SEMAPHORES["openai"]:
         for attempt in range(RETRY_ATTEMPTS):
+            await asyncio.sleep(OPENAI_MIN_INTERVAL)
             try:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
@@ -111,13 +126,53 @@ async def call_openai(
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                await asyncio.sleep(OPENAI_MIN_INTERVAL)
                 return data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                err_code, try_again_hint = _openai_error_meta(e.response)
+                if err_code == "insufficient_quota":
+                    logger.error(
+                        "OpenAI insufficient_quota — update billing / usage limits at "
+                        "https://platform.openai.com/account/billing (retries skipped for this request)."
+                    )
+                    return None
+
+                body_preview = ""
+                try:
+                    body_preview = (e.response.text or "")[:800].replace("\n", " ")
+                except Exception:
+                    pass
+                if body_preview:
+                    logger.warning(
+                        f"OpenAI attempt {attempt + 1} HTTP {e.response.status_code}: {body_preview}"
+                    )
+                else:
+                    logger.warning(f"OpenAI attempt {attempt + 1} failed: {e}")
+                if attempt >= RETRY_ATTEMPTS - 1:
+                    break
+                retry_after = 0.0
+                ra_hdr = e.response.headers.get("retry-after") or ""
+                try:
+                    retry_after = float(ra_hdr.strip())
+                except ValueError:
+                    pass
+                if e.response.status_code == 429:
+                    if try_again_hint > 0:
+                        wait = max(try_again_hint + 1.0, retry_after)
+                    else:
+                        wait = max(30.0 * (2**attempt), retry_after)
+                    logger.info(
+                        f"Rate limited — waiting {wait:.0f}s "
+                        f"(API hint={try_again_hint:.0f}s, retry-after={retry_after:.0f}s) …"
+                    )
+                else:
+                    wait = RETRY_BACKOFF ** (attempt + 1)
+                    logger.info(f"Waiting {wait:.0f}s before retry …")
+                await asyncio.sleep(wait)
             except Exception as e:
                 logger.warning(f"OpenAI attempt {attempt+1} failed: {e}")
                 if attempt < RETRY_ATTEMPTS - 1:
                     is_rate_limit = "429" in str(e)
-                    wait = 20.0 * (2 ** attempt) if is_rate_limit else RETRY_BACKOFF ** (attempt + 1)
+                    wait = 30.0 * (2**attempt) if is_rate_limit else RETRY_BACKOFF ** (attempt + 1)
                     logger.info(f"Waiting {wait:.0f}s before retry …")
                     await asyncio.sleep(wait)
     return None
