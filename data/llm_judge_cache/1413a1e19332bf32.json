@@ -1,0 +1,1 @@
+{"score": 0.8, "signals": ["generic variable names (i, j, n, ans)", "lack of comments or documentation", "overly clean structure with no dead code or redundancy", "unpredictable solution patterns", "lack of debugging artifacts or iterative approaches"]}

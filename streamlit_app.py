@@ -564,7 +564,13 @@ with right_col:
         cols = [m1, m2, m3]
         for i, (lbl, key) in enumerate(labels_keys):
             v = components.get(key)
-            cols[i].metric(lbl, "—" if v is None else f"{float(v):.2f}")
+            if v is None:
+                disp = "—"
+            elif key == "codebert":
+                disp = f"{float(v):.4f}"
+            else:
+                disp = f"{float(v):.2f}"
+            cols[i].metric(lbl, disp)
 
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         signals = result.get("signals") or []

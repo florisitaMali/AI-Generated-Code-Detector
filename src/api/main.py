@@ -11,6 +11,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.api.routes import router
+from src.api.auth_routes import router as auth_router
+from src.auth.store import init_db
 
 app = FastAPI(
     title="AI-Generated Code Detector",
@@ -31,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="", tags=["detection"])
+app.include_router(auth_router)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 if FRONTEND_DIR.exists():
@@ -44,6 +47,7 @@ if FRONTEND_DIR.exists():
 @app.on_event("startup")
 async def startup():
     from loguru import logger
+    init_db()
     logger.info("AI Code Detector API starting up")
     # Kick off background download of CodeBERT MLM model so it is ready
     # before the first /analyze request arrives.

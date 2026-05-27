@@ -9,7 +9,8 @@ const API_BASE =
     ? `${location.protocol}//${location.host}`
     : "http://127.0.0.1:8000");
 
-document.getElementById("api-url").textContent = API_BASE;
+const apiUrlEl = document.getElementById("api-url");
+if (apiUrlEl) apiUrlEl.textContent = API_BASE;
 
 const $ = (id) => document.getElementById(id);
 const codeEl = $("code");
@@ -29,6 +30,410 @@ const componentsList = $("components");
 const signalsList = $("signals");
 const apiStatus = $("api-status");
 const apiError = $("api-error");
+
+let detectionMode = "ensemble";
+
+const AUTH_TOKEN_KEY = "tracecoder_token";
+const AUTH_USER_KEY = "tracecoder_user";
+
+function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+function authHeaders(extra = {}) {
+  const token = getAuthToken();
+  const headers = { ...extra };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function setAuthSession(token, user) {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  updateAuthUI();
+  loadHistory();
+}
+
+function clearAuthSession() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+  updateAuthUI();
+  clearHistoryList();
+}
+
+function getStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_USER_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+const authGuest = $("auth-guest");
+const authUser = $("auth-user");
+const userLabel = $("user-label");
+const userAvatar = $("user-avatar");
+const historySection = $("history-section");
+const historyList = $("history-list");
+const historyEmpty = $("history-empty");
+const googleSigninSlot = $("google-signin-slot");
+let supabaseClient = null;
+
+// #region agent log
+function agentLog(location, message, data, hypothesisId) {
+  fetch("http://127.0.0.1:7607/ingest/5ca97c2d-d639-4e8b-9f2c-89ae596606ba", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fba3a1" },
+    body: JSON.stringify({
+      sessionId: "fba3a1",
+      runId: "pre-fix",
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
+
+function updateAuthUI() {
+  const user = getStoredUser();
+  const loggedIn = Boolean(user && getAuthToken());
+  if (authGuest) {
+    authGuest.hidden = loggedIn;
+    authGuest.style.display = loggedIn ? "none" : "";
+  }
+  if (authUser) {
+    authUser.hidden = !loggedIn;
+    authUser.style.display = loggedIn ? "" : "none";
+  }
+  if (historySection) historySection.hidden = !loggedIn;
+  if (user && userAvatar && user.avatarUrl) {
+    userAvatar.src = user.avatarUrl;
+    userAvatar.alt = user.username || "Profile";
+    userAvatar.hidden = false;
+    if (userLabel) userLabel.hidden = true;
+  } else if (user && userLabel) {
+    userLabel.textContent = user.username || "Signed in";
+    userLabel.hidden = false;
+    if (userAvatar) userAvatar.hidden = true;
+  } else {
+    if (userLabel) userLabel.hidden = true;
+    if (userAvatar) userAvatar.hidden = true;
+  }
+  // #region agent log
+  agentLog(
+    "app.js:updateAuthUI",
+    "auth ui state",
+    {
+      loggedIn,
+      guestHidden: authGuest?.hidden,
+      userHidden: authUser?.hidden,
+      guestDisplay: authGuest ? getComputedStyle(authGuest).display : null,
+      userDisplay: authUser ? getComputedStyle(authUser).display : null,
+      hasToken: Boolean(getAuthToken()),
+    },
+    "H1"
+  );
+  // #endregion
+}
+
+function clearHistoryList() {
+  if (historyList) historyList.innerHTML = "";
+  if (historyEmpty) historyEmpty.hidden = false;
+}
+
+function formatHistoryDate(iso) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function riskClass(decision) {
+  if (decision === "accept") return "history__risk--accept";
+  if (decision === "review") return "history__risk--review";
+  return "history__risk--hold";
+}
+
+async function loadHistory() {
+  if (!getAuthToken() || !historyList) return;
+  try {
+    const resp = await fetch(`${API_BASE}/auth/history`, { headers: authHeaders() });
+    if (resp.status === 401) {
+      // #region agent log
+      agentLog("app.js:loadHistory", "history 401 — keeping supabase session", {}, "H4");
+      // #endregion
+      return;
+    }
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    renderHistoryList(data.entries || []);
+  } catch (err) {
+    console.warn("History load failed:", err);
+  }
+}
+
+function renderHistoryList(entries) {
+  historyList.innerHTML = "";
+  if (!entries.length) {
+    historyEmpty.hidden = false;
+    return;
+  }
+  historyEmpty.hidden = true;
+  for (const entry of entries) {
+    const li = document.createElement("li");
+    li.className = "history__item";
+    li.dataset.id = entry.id;
+    li.innerHTML = `
+      <span class="history__meta">${entry.language} · ${MODE_LABELS[entry.detection_mode] || entry.detection_mode} · ${formatHistoryDate(entry.created_at)}</span>
+      <span class="history__risk ${riskClass(entry.decision)}">${Number(entry.risk_score).toFixed(2)}</span>
+      <button type="button" class="history__delete" title="Delete" aria-label="Delete">✕</button>
+      <span class="history__preview">${escapeHtml(entry.code_preview || "")}</span>
+    `;
+    li.addEventListener("click", (e) => {
+      if (e.target.closest(".history__delete")) return;
+      loadHistoryEntry(entry.id);
+    });
+    li.querySelector(".history__delete")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteHistoryEntry(entry.id);
+    });
+    historyList.appendChild(li);
+  }
+}
+
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function loadHistoryEntry(id) {
+  try {
+    const resp = await fetch(`${API_BASE}/auth/history/${id}`, { headers: authHeaders() });
+    if (!resp.ok) throw new Error(await resp.text());
+    const entry = await resp.json();
+    codeEl.value = entry.code || "";
+    langEl.value = entry.language || "python";
+    if (entry.problem_id) problemEl.value = entry.problem_id;
+    else problemEl.value = "";
+    detectionMode = entry.detection_mode || "ensemble";
+    document.querySelectorAll(".model-card").forEach((b) => {
+      b.classList.toggle("is-selected", (b.dataset.mode || "ensemble") === detectionMode);
+    });
+    syncMeta();
+    setGauge(entry.risk_score ?? 0);
+    const [label, badgeCls] = decisionLabel(entry.decision);
+    decisionBadge.className = `badge ${badgeCls}`;
+    decisionBadge.textContent = label;
+    setComponents(entry.component_scores || {}, detectionMode);
+    setSignals(entry.signals || [], entry.decision);
+    updateModeBadge(detectionMode);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (err) {
+    apiError.hidden = false;
+    apiError.textContent = `Could not load history: ${err.message}`;
+  }
+}
+
+async function deleteHistoryEntry(id) {
+  try {
+    const resp = await fetch(`${API_BASE}/auth/history/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    await loadHistory();
+  } catch (err) {
+    apiError.hidden = false;
+    apiError.textContent = `Delete failed: ${err.message}`;
+  }
+}
+
+async function syncSessionFromSupabase() {
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.auth.getSession();
+  // #region agent log
+  agentLog(
+    "app.js:syncSessionFromSupabase",
+    "session sync",
+    {
+      hasError: Boolean(error),
+      hasSession: Boolean(data?.session?.access_token),
+      userIdPrefix: data?.session?.user?.id?.slice(0, 8) || null,
+    },
+    "H2"
+  );
+  // #endregion
+  if (error || !data?.session?.access_token) {
+    clearAuthSession();
+    return;
+  }
+  const user = data.session.user || {};
+  setAuthSession(data.session.access_token, {
+    id: user.id || "",
+    username: user.email || "supabase-user",
+    avatarUrl: user.user_metadata?.avatar_url || user.user_metadata?.picture || "",
+  });
+}
+
+async function startSupabaseGoogleSignin() {
+  if (!supabaseClient) return;
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo },
+  });
+  if (error) {
+    apiError.hidden = false;
+    apiError.textContent = `Supabase login failed: ${error.message}`;
+  }
+}
+
+async function logoutWithSupabase() {
+  // #region agent log
+  agentLog("app.js:logoutWithSupabase", "logout clicked", { hasClient: Boolean(supabaseClient) }, "H3");
+  // #endregion
+  if (supabaseClient) {
+    const { error } = await supabaseClient.auth.signOut();
+    // #region agent log
+    agentLog(
+      "app.js:logoutWithSupabase",
+      "signOut result",
+      { hasError: Boolean(error), errorMsg: error?.message || null },
+      "H3"
+    );
+    // #endregion
+  }
+  clearAuthSession();
+}
+
+function renderSignInButton() {
+  if (!googleSigninSlot) return;
+  googleSigninSlot.innerHTML = "";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn--primary btn--sm";
+  btn.textContent = "Sign in with Google";
+  btn.addEventListener("click", startSupabaseGoogleSignin);
+  googleSigninSlot.appendChild(btn);
+}
+
+async function initSupabaseAuth() {
+  try {
+    const resp = await fetch(`${API_BASE}/auth/supabase/config`);
+    if (!resp.ok) throw new Error("Supabase config unavailable");
+    const cfg = await resp.json();
+    if (!cfg.enabled || !cfg.url || !cfg.anon_key) {
+      googleSigninSlot.textContent = "Supabase auth unavailable — save .env and restart API";
+      googleSigninSlot.style.fontSize = "12px";
+      googleSigninSlot.style.color = "var(--muted)";
+      return;
+    }
+    if (!window.supabase?.createClient) {
+      googleSigninSlot.textContent = "Supabase script failed to load";
+      return;
+    }
+    supabaseClient = window.supabase.createClient(cfg.url, cfg.anon_key);
+    renderSignInButton();
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      // #region agent log
+      agentLog(
+        "app.js:onAuthStateChange",
+        "auth event",
+        { event, hasSession: Boolean(session?.access_token) },
+        "H2"
+      );
+      // #endregion
+      if (session?.access_token) {
+        const u = session.user || {};
+        setAuthSession(session.access_token, {
+          id: u.id || "",
+          username: u.email || "supabase-user",
+          avatarUrl: u.user_metadata?.avatar_url || u.user_metadata?.picture || "",
+        });
+      } else if (event === "SIGNED_OUT") {
+        clearAuthSession();
+      }
+    });
+    await syncSessionFromSupabase();
+  } catch (err) {
+    console.warn("Supabase auth init failed:", err);
+  }
+}
+
+$("logout-btn")?.addEventListener("click", logoutWithSupabase);
+$("history-refresh")?.addEventListener("click", loadHistory);
+
+/** Which component score rows are relevant per detection_mode (must match API). */
+const MODE_COMPONENTS = {
+  ensemble: ["statistical", "codebert", "llm_judge"],
+  fusion: ["statistical", "codebert"],
+  stylometric: ["statistical"],
+  codebert: ["codebert"],
+  llm: ["llm_judge"],
+};
+
+const MODE_LABELS = {
+  ensemble: "Full ensemble",
+  fusion: "Fusion (stat + neural)",
+  stylometric: "Stylometric only",
+  codebert: "Neural encoder only",
+  llm: "LLM judge only",
+};
+
+const componentsHeading = document.querySelector(".components h3");
+const modeBadge = document.getElementById("mode-badge");
+
+function allowedKeysForMode(mode) {
+  return new Set(MODE_COMPONENTS[mode] || MODE_COMPONENTS.ensemble);
+}
+
+function updateModeBadge(mode = detectionMode) {
+  if (modeBadge) {
+    modeBadge.textContent = MODE_LABELS[mode] || mode;
+    modeBadge.hidden = false;
+  }
+  if (componentsHeading) {
+    const single = MODE_COMPONENTS[mode]?.length === 1;
+    componentsHeading.textContent = single ? "Detector score" : "Component scores";
+  }
+}
+
+function updateComponentVisibility(mode = detectionMode) {
+  const allowed = allowedKeysForMode(mode);
+  for (const li of componentsList.querySelectorAll("li.bar")) {
+    const key = li.dataset.key;
+    const show = allowed.has(key);
+    li.hidden = !show;
+    if (!show) {
+      li.querySelector(".bar__fill").style.width = "0%";
+      li.querySelector(".bar__value").textContent = "—";
+      li.style.opacity = "0.55";
+    }
+  }
+  updateModeBadge(mode);
+}
+
+document.querySelectorAll(".model-card").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    detectionMode = btn.dataset.mode || "ensemble";
+    document.querySelectorAll(".model-card").forEach((b) => b.classList.remove("is-selected"));
+    btn.classList.add("is-selected");
+    updateComponentVisibility(detectionMode);
+    resetResult();
+  });
+});
 
 const SAMPLES = {
   python: `def solve():\n    n = int(input())\n    arr = list(map(int, input().split()))\n    arr.sort()\n    total = 0\n    for i, x in enumerate(arr):\n        total += x * (i + 1)\n    print(total)\n\nif __name__ == "__main__":\n    solve()\n`,
@@ -76,6 +481,12 @@ function decisionLabel(d) {
   }
 }
 
+function decisionFromScore(score) {
+  if (score < 0.4) return "accept";
+  if (score < 0.7) return "review";
+  return "hold";
+}
+
 function colorForScore(s) {
   if (s == null || s < 0.4) return "var(--accept)";
   if (s < 0.7) return "var(--review)";
@@ -104,19 +515,24 @@ function setGauge(score) {
   if (rc) rc.style.boxShadow = glowForScore(clamped);
 }
 
-function setComponents(comp) {
+function setComponents(comp, mode = detectionMode) {
+  const allowed = allowedKeysForMode(mode);
+  updateComponentVisibility(mode);
+
   for (const li of componentsList.querySelectorAll("li.bar")) {
     const key = li.dataset.key;
+    if (!allowed.has(key)) continue;
+
     const value = comp ? comp[key] : null;
     const fill = li.querySelector(".bar__fill");
     const valEl = li.querySelector(".bar__value");
-    if (value == null) {
+    if (value == null || value === undefined) {
       fill.style.width = "0%";
       valEl.textContent = "—";
       li.style.opacity = 0.55;
     } else {
       fill.style.width = `${(value * 100).toFixed(0)}%`;
-      valEl.textContent = value.toFixed(2);
+      valEl.textContent = Number(value).toFixed(2);
       li.style.opacity = 1;
     }
   }
@@ -151,7 +567,7 @@ function resetResult() {
   decisionBadge.textContent = "awaiting input";
   const rc = document.getElementById("result-card");
   if (rc) rc.style.boxShadow = "";
-  setComponents(null);
+  setComponents(null, detectionMode);
   setSignals([], null);
   apiError.hidden = true;
   apiError.textContent = "";
@@ -171,13 +587,15 @@ async function analyze() {
   if (subCard) subCard.classList.add("is-scanning");
   if (resCard) resCard.classList.add("is-scanning");
   try {
+    const requestedMode = detectionMode;
     const resp = await fetch(`${API_BASE}/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         code,
         language: langEl.value,
         problem_id: problemEl.value || null,
+        detection_mode: requestedMode,
       }),
     });
     if (!resp.ok) {
@@ -185,13 +603,50 @@ async function analyze() {
       throw new Error(`${resp.status}: ${text || resp.statusText}`);
     }
     const data = await resp.json();
-    setGauge(data.risk_score ?? 0);
-    const [label, badgeCls] = decisionLabel(data.decision);
+    let modeUsed = data.detection_mode || requestedMode;
+    let gaugeRisk = data.risk_score ?? 0;
+    const comp = data.component_scores || {};
+
+    // Backward-compatibility fallback: some running servers may ignore detection_mode.
+    if (!data.detection_mode) {
+      if (requestedMode === "stylometric" && comp.statistical != null) {
+        gaugeRisk = Number(comp.statistical);
+      } else if (requestedMode === "codebert" && comp.codebert != null) {
+        gaugeRisk = Number(comp.codebert);
+      } else if (requestedMode === "llm" && comp.llm_judge != null) {
+        gaugeRisk = Number(comp.llm_judge);
+      } else if (requestedMode === "fusion") {
+        const parts = [comp.statistical, comp.codebert].filter((v) => v != null).map(Number);
+        if (parts.length) gaugeRisk = parts.reduce((a, b) => a + b, 0) / parts.length;
+      }
+      modeUsed = requestedMode;
+    }
+    if (data.detection_mode && data.detection_mode !== detectionMode) {
+      console.warn(
+        `API used detection_mode=${data.detection_mode} but UI selected ${detectionMode}. Restart uvicorn if this persists.`
+      );
+    }
+    setGauge(gaugeRisk);
+    const decisionUsed = !data.detection_mode ? decisionFromScore(gaugeRisk) : data.decision;
+    const [label, badgeCls] = decisionLabel(decisionUsed);
     decisionBadge.className = `badge ${badgeCls}`;
     decisionBadge.textContent = label;
-    setComponents(data.component_scores || {});
-    setSignals(data.signals || [], data.decision);
+    setComponents(data.component_scores || {}, modeUsed);
+    setSignals(data.signals || [], decisionUsed);
+    updateModeBadge(modeUsed);
+    // #region agent log
+    agentLog(
+      "app.js:analyze",
+      "analyze done",
+      { hasToken: Boolean(getAuthToken()), status: resp.status },
+      "H4"
+    );
+    // #endregion
+    if (getAuthToken()) loadHistory();
   } catch (err) {
+    // #region agent log
+    agentLog("app.js:analyze", "analyze error", { message: String(err.message).slice(0, 120) }, "H5");
+    // #endregion
     apiError.hidden = false;
     apiError.textContent = `Analyze failed: ${err.message}`;
   } finally {
@@ -224,7 +679,11 @@ async function pingHealth() {
   }
 }
 
+updateComponentVisibility(detectionMode);
 resetResult();
 syncMeta();
+updateAuthUI();
+if (getAuthToken()) loadHistory();
+initSupabaseAuth();
 pingHealth();
 setInterval(pingHealth, 15000);

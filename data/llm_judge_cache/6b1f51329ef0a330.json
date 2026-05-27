@@ -1,0 +1,1 @@
+{"score": 0.8, "signals": ["generic variable names (a, h, n)", "lack of comments or explanations", "overly clean structure with no debugging artifacts", "unusual recursive approach for counting primes", "consistent formatting and style"]}

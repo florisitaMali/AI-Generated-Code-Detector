@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 import sys
@@ -21,11 +21,15 @@ from src.api.schemas import (
     HealthResponse,
 )
 from src.ensemble.scorer import EnsembleScorer, make_decision
+from src.auth.deps import get_optional_user
+from src.auth.store import User, add_history
+from src.debug_log import agent_log
 from config.settings import MODELS_DIR, RAW_DIR, THRESHOLD_AUTO_ACCEPT, THRESHOLD_FLAG_REVIEW, LLM_GATE_THRESHOLD
 
 router = APIRouter()
 
 SUPPORTED_LANGUAGES = frozenset({"cpp", "python", "java", "c", "csharp", "javascript"})
+DETECTION_MODES = frozenset({"ensemble", "stylometric", "codebert", "fusion", "llm"})
 
 _scorer: EnsembleScorer | None = None
 _models_loaded = {
@@ -119,17 +123,31 @@ def _load_human_examples(problem_id: str, language: str, max_examples: int = 3) 
     return examples
 
 
+def _parse_detection_mode(detection_mode: str | None) -> str:
+    mode = (detection_mode or "ensemble").strip().lower()
+    if mode not in DETECTION_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported detection_mode '{detection_mode}'. "
+            f"Use one of: {', '.join(sorted(DETECTION_MODES))}",
+        )
+    return mode
+
+
 async def _get_llm_judge_score(
     code: str,
     problem_id: str | None,
     language: str,
     stat_score: float | None,
     codebert_score: float | None = None,
+    *,
+    force: bool = False,
 ) -> float | None:
-    """Call LLM-as-judge when ANY raw component score exceeds the gate threshold."""
-    scores = [s for s in (stat_score, codebert_score) if s is not None]
-    if not scores or max(scores) < LLM_GATE_THRESHOLD:
-        return None
+    """Call LLM-as-judge when gated, or always when ``force`` (LLM-only mode)."""
+    if not force:
+        scores = [s for s in (stat_score, codebert_score) if s is not None]
+        if not scores or max(scores) < LLM_GATE_THRESHOLD:
+            return None
     try:
         from src.models.llm_judge import judge
         pid = problem_id or "unknown"
@@ -145,11 +163,30 @@ async def _get_llm_judge_score(
 
 
 async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
+    mode = _parse_detection_mode(req.detection_mode)
+
     scorer = _get_scorer()
 
-    stat_score = _get_statistical_score(req.code, req.language)
-    codebert_score = _get_codebert_score(req.code)
-    llm_score = await _get_llm_judge_score(req.code, req.problem_id, req.language, stat_score, codebert_score)
+    stat_score: float | None = None
+    codebert_score: float | None = None
+    llm_score: float | None = None
+
+    if mode == "stylometric":
+        stat_score = _get_statistical_score(req.code, req.language)
+    elif mode == "codebert":
+        codebert_score = _get_codebert_score(req.code)
+    elif mode == "llm":
+        llm_score = await _get_llm_judge_score(
+            req.code, req.problem_id, req.language, None, None, force=True
+        )
+    else:
+        stat_score = _get_statistical_score(req.code, req.language)
+        codebert_score = _get_codebert_score(req.code)
+        if mode == "ensemble":
+            llm_score = await _get_llm_judge_score(
+                req.code, req.problem_id, req.language, stat_score, codebert_score
+            )
+        # mode == "fusion": no LLM
 
     component_scores: dict[str, float] = {}
     if stat_score is not None:
@@ -160,16 +197,43 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         component_scores["llm_judge"] = llm_score
 
     if not component_scores:
+        hint = ""
+        if mode == "llm":
+            hint = " Configure OPENAI_API_KEY / ANTHROPIC_API_KEY (and optional GOOGLE_API_KEY) for LLM mode."
         return AnalyzeResponse(
             risk_score=0.5,
             decision="review",
+            detection_mode=mode,
             component_scores=ComponentScores(),
-            signals=["All detectors unavailable; score defaulted to 0.5 (review)"],
+            signals=[f"No score produced in '{mode}' mode (detector unavailable).{hint}"],
         )
 
-    result = scorer.score(component_scores)
+    if mode == "stylometric" and stat_score is not None:
+        risk = float(stat_score)
+        decision = make_decision(risk)
+    elif mode == "codebert" and codebert_score is not None:
+        risk = float(codebert_score)
+        decision = make_decision(risk)
+    elif mode == "llm" and llm_score is not None:
+        risk = float(llm_score)
+        decision = make_decision(risk)
+    else:
+        result = scorer.score(component_scores)
+        risk = float(result["risk_score"])
+        decision = str(result["decision"])
 
-    signals = []
+    signals: list[str] = []
+    if mode == "fusion":
+        signals.append("Fusion: stylometric + CodeBERT (LLM audit disabled for this request).")
+    elif mode == "stylometric":
+        signals.append("Single detector: stylometric features only.")
+    elif mode == "codebert":
+        signals.append("Single detector: neural encoder only.")
+    elif mode == "llm":
+        signals.append(
+            "Single detector: LLM-as-judge (set Problem ID when possible for human-reference context)."
+        )
+
     if stat_score is not None and stat_score > 0.6:
         signals.append(f"Stylometric features suggest AI origin (score={stat_score:.2f})")
     if codebert_score is not None and codebert_score > 0.6:
@@ -178,8 +242,9 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         signals.append(f"LLM-judge classifies as AI-generated (score={llm_score:.2f})")
 
     return AnalyzeResponse(
-        risk_score=result["risk_score"],
-        decision=result["decision"],
+        risk_score=risk,
+        decision=decision,
+        detection_mode=mode,
         component_scores=ComponentScores(
             statistical=stat_score,
             codebert=codebert_score,
@@ -190,7 +255,10 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze(request: AnalyzeRequest):
+async def analyze(
+    request: AnalyzeRequest,
+    user: User | None = Depends(get_optional_user),
+):
     """Analyse a single code submission for AI generation."""
     if not request.code.strip():
         raise HTTPException(status_code=400, detail="Empty code submission")
@@ -201,7 +269,38 @@ async def analyze(request: AnalyzeRequest):
                    f"Must be one of: {', '.join(sorted(SUPPORTED_LANGUAGES))}",
         )
 
-    return await _analyze_single(request)
+    logger.info("Analyze request: language=%s detection_mode=%s", request.language, request.detection_mode)
+    result = await _analyze_single(request)
+    agent_log(
+        "routes.py:analyze",
+        "analyze complete",
+        {"user_present": user is not None, "user_id_prefix": (user.id[:8] if user else None)},
+        "H4",
+    )
+    if user is not None:
+        comp = result.component_scores.model_dump() if result.component_scores else {}
+        try:
+            add_history(
+                user.id,
+                code=request.code,
+                language=request.language,
+                problem_id=request.problem_id,
+                detection_mode=result.detection_mode,
+                risk_score=result.risk_score,
+                decision=result.decision,
+                component_scores=comp,
+                signals=result.signals,
+            )
+            agent_log("routes.py:analyze", "history saved", {"user_id_prefix": user.id[:8]}, "H5")
+        except Exception as exc:
+            agent_log(
+                "routes.py:analyze",
+                "history save failed",
+                {"error_type": type(exc).__name__, "error": str(exc)[:200]},
+                "H5",
+            )
+            logger.warning(f"Could not save scan history: {exc}")
+    return result
 
 
 @router.post("/batch", response_model=BatchResponse)
@@ -211,6 +310,8 @@ async def batch_analyze(request: BatchRequest):
         raise HTTPException(status_code=400, detail="No submissions provided")
     if len(request.submissions) > 100:
         raise HTTPException(status_code=400, detail="Maximum 100 submissions per batch")
+    for sub in request.submissions:
+        _parse_detection_mode(sub.detection_mode)
     for sub in request.submissions:
         if sub.language not in SUPPORTED_LANGUAGES:
             raise HTTPException(

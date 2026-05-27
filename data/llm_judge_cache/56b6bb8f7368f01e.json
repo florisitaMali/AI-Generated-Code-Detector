@@ -1,0 +1,1 @@
+{"score": 0.85, "signals": ["Overly clean, optimal structure with no dead code or redundancy", "Generic variable names (s, mes) vs. personal shorthand (rem, sz, pw2)", "Lack of debugging artifacts, commented-out code, or iterative approaches", "Unnaturally consistent formatting and style", "Predictable solution patterns typical of AI code generation"]}

@@ -1,0 +1,1 @@
+{"score": 0.7, "signals": ["Overly clean, optimal structure with no dead code or redundancy", "Generic variable names (r, sin_) vs. personal shorthand", "Lack of debugging artifacts, commented-out code, or iterative approaches", "Consistent formatting and style throughout the code", "Use of a predefined macro for loops (REP) which is less common in human-written solutions"]}

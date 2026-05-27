@@ -1,0 +1,1 @@
+{"score": 0.85, "signals": ["Overly clean, optimal structure with no dead code or redundancy", "Generic variable names (max_lucky_number, a, b) vs. personal shorthand", "Lack of debugging artifacts, commented-out code, or iterative approaches", "Consistent formatting and style that is not typical in competitive programming"]}

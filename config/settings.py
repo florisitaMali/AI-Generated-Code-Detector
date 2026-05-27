@@ -2,9 +2,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
-
 ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env")
 DATA_DIR = ROOT_DIR / os.getenv("DATA_DIR", "data")
 RAW_DIR = DATA_DIR / "raw"
 GENERATED_DIR = DATA_DIR / "generated"
@@ -44,14 +43,22 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
-# CodeBERT training
+# CodeBERT training (override on e.g. Colab: CODEBERT_BATCH_SIZE=4 CODEBERT_EPOCHS=2)
 CODEBERT_MODEL_NAME = "microsoft/codebert-base"
 CODEBERT_MAX_LENGTH = 512
+# Applied as sigmoid(logit / T). T>1 softens probabilities (better calibration plots).
+# Optional file models/codebert_final/inference_calibration.json overrides this when present.
+CODEBERT_INFERENCE_TEMPERATURE = float(os.getenv("CODEBERT_INFERENCE_TEMPERATURE", "1.0"))
 CODEBERT_LR = 2e-5
-CODEBERT_BATCH_SIZE = 16
-CODEBERT_EPOCHS = 5
-CODEBERT_WARMUP_RATIO = 0.1
-CODEBERT_PATIENCE = 2
+CODEBERT_BATCH_SIZE = int(os.getenv("CODEBERT_BATCH_SIZE", "16"))
+CODEBERT_EPOCHS = int(os.getenv("CODEBERT_EPOCHS", "5"))
+CODEBERT_WARMUP_RATIO = float(os.getenv("CODEBERT_WARMUP_RATIO", "0.1"))
+# EarlyStoppingCallback counts validation *runs*; with step-based eval below, default is higher than epoch-only training.
+CODEBERT_PATIENCE = int(os.getenv("CODEBERT_PATIENCE", "6"))
+# Save/eval every N optimizer steps (frequent = safer resume on Colab). Capped to ≤ 1× per epoch in code.
+CODEBERT_SAVE_STEPS = int(os.getenv("CODEBERT_SAVE_STEPS", "250"))
+# Rolling checkpoints kept under models/codebert/ (latest used for resume via get_last_checkpoint)
+CODEBERT_SAVE_TOTAL_LIMIT = int(os.getenv("CODEBERT_SAVE_TOTAL_LIMIT", "8"))
 
 # Perplexity model
 PERPLEXITY_MODEL_NAME = "microsoft/CodeGPT-small-py"
@@ -66,6 +73,23 @@ LLM_GATE_THRESHOLD = float(os.getenv("LLM_GATE_THRESHOLD", "0.45"))
 # API
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
+
+# TraceCoder accounts (change JWT_SECRET in production)
+JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "168"))
+TRACECODER_DB_PATH = Path(os.getenv("TRACECODER_DB_PATH", str(DATA_DIR / "tracecoder.db")))
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+
+# Supabase (recommended auth + history persistence)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+# Project Settings → API → JWT Settings → JWT Secret (for HS256 user access tokens)
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "").strip()
+SUPABASE_JWT_AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "authenticated").strip()
+SUPABASE_HISTORY_TABLE = os.getenv("SUPABASE_HISTORY_TABLE", "scan_history").strip()
+SUPABASE_USERS_TABLE = os.getenv("SUPABASE_USERS_TABLE", "app_users").strip()
 
 # Dataset splits (legacy parquet builder)
 TRAIN_RATIO = 0.70

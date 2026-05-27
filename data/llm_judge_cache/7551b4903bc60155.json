@@ -1,0 +1,1 @@
+{"score": 0.85, "signals": ["Overly clean and optimal structure with no dead code or redundancy", "Generic variable names (stack, operators) vs. personal shorthand", "Consistent formatting and style throughout the code", "Use of built-in operator module for operations, which is less common in competitive programming", "Lack of debugging artifacts or iterative approaches"]}

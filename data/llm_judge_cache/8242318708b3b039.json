@@ -1,0 +1,1 @@
+{"score": 0.7, "signals": ["Generic variable names (n, m, ls) vs. personal shorthand (rem, sz, pw2)", "Unnaturally consistent formatting and style", "Lack of debugging artifacts or iterative approaches", "Use of raw_input() which is less common in competitive programming today"]}

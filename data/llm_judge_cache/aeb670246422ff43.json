@@ -1,0 +1,1 @@
+{"score": 0.8, "signals": ["Overly clean, optimal structure with no dead code or redundancy", "Generic variable names (cost, mincost, used) vs. personal shorthand", "Unnaturally consistent formatting and style", "Lack of debugging artifacts, commented-out code, or iterative approaches"]}

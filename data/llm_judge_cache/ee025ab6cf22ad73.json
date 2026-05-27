@@ -1,0 +1,1 @@
+{"score": 0.85, "signals": ["Overly clean and optimal structure with no dead code or redundancy", "Generic variable names (atari, flg) vs. personal shorthand used in human examples", "Lack of debugging artifacts or commented-out code", "Consistent formatting and style throughout the code", "Use of a helper function (check) that is overly generic and predictable in structure"]}

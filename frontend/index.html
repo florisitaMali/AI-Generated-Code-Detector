@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AI Code Detector</title>
+    <title>TraceCoder — AI Code Detector</title>
+    <link rel="icon" type="image/png" href="./assets/tracecoder-brand.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,14 +18,25 @@
     <!-- ── Top bar ── -->
     <header class="topbar">
       <div class="container topbar__inner">
-        <a class="brand" href="#">
-          <span class="brand__mark">◐</span>
-          <span class="brand__text">
-            <strong>AI Code Detector</strong>
-            <small>graduation project</small>
-          </span>
+        <a class="brand" href="#" aria-label="TraceCoder home">
+          <img
+            class="brand__logo"
+            src="./assets/tracecoder-logo-transparent.png"
+            alt="TraceCoder"
+            width="160"
+            height="46"
+            decoding="async"
+          />
         </a>
         <nav class="topbar__nav">
+          <div id="auth-guest" class="auth-nav">
+            <div id="google-signin-slot"></div>
+          </div>
+          <div id="auth-user" class="auth-nav" hidden>
+            <img id="user-avatar" class="user-avatar" alt="Profile" width="32" height="32" hidden />
+            <span id="user-label" class="user-chip" hidden></span>
+            <button type="button" id="logout-btn" class="btn btn--ghost btn--sm">Log out</button>
+          </div>
           <span id="api-status" class="status">initialising…</span>
         </nav>
       </div>
@@ -35,12 +47,15 @@
 
       <section class="hero">
         <h1>Detect AI-generated code</h1>
-        <p>
-          Paste a competitive-programming submission below. The ensemble scorer
-          returns a <strong>risk score 0–1</strong>, a policy decision
+        <p class="hero__tagline">
+          The dependable way to <strong>audit competitive-programming submissions</strong>—merge fast stylometry,
+          a fine-tuned neural encoder, and optional LLM reasoning into one transparent <strong>risk score</strong>.
+        </p>
+        <p class="hero__sub">
+          Paste a submission below. The scorer returns a <strong>risk score 0–1</strong>, a policy decision
           (<strong>accept</strong> · <strong>review</strong> · <strong>hold</strong>),
-          per-component sub-scores, and human-readable detection signals.
-          Press <kbd style="font-family:monospace;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);border-radius:4px;padding:1px 5px;font-size:12px;">Ctrl+Enter</kbd> to analyze.
+          per-component sub-scores, and human-readable signals.
+          Press <kbd class="kbd">Ctrl+Enter</kbd> to analyze.
         </p>
       </section>
 
@@ -98,13 +113,25 @@
         <article class="card result" id="result-card">
           <header class="card__header">
             <h2>Analysis</h2>
-            <span id="decision-badge" class="badge badge--idle">awaiting input</span>
+            <div class="card__badges">
+              <span id="mode-badge" class="badge badge--mode">Full ensemble</span>
+              <span id="decision-badge" class="badge badge--idle">awaiting input</span>
+            </div>
           </header>
 
           <div class="result__body">
 
             <!-- Gauge -->
             <div class="gauge">
+              <img
+                class="gauge__logo"
+                src="./assets/tracecoder-brand.png"
+                alt=""
+                aria-hidden="true"
+                width="46"
+                height="46"
+                decoding="async"
+              />
               <svg viewBox="0 0 200 120" class="gauge__svg" aria-hidden="true">
                 <!-- zone fills -->
                 <path d="M10 110 A 90 90 0 0 1 84 22"  fill="none" stroke="rgba(0,255,163,0.15)"  stroke-width="14" stroke-linecap="butt"/>
@@ -176,16 +203,113 @@
         </article>
 
       </section>
+
+      <section id="history-section" class="history card" hidden>
+        <header class="card__header">
+          <h2>Your scan history</h2>
+          <button type="button" id="history-refresh" class="btn btn--ghost btn--sm">Refresh</button>
+        </header>
+        <p class="history__hint">Signed-in analyses are saved automatically. Click an entry to reload code and results.</p>
+        <ul id="history-list" class="history__list"></ul>
+        <p id="history-empty" class="history__empty" hidden>No scans yet. Run an analysis while logged in.</p>
+      </section>
+
+      <section class="model-strip" aria-label="Detection method">
+        <div class="model-strip__inner">
+          <p class="model-cards__title">Detection method</p>
+          <p class="model-cards__hint">Choose how to score the submission, then press <strong>Analyze</strong> above.</p>
+          <div class="model-cards__grid" role="group">
+            <button type="button" class="model-card is-selected" data-mode="ensemble" title="Default pipeline">
+              <span class="model-card__icon" aria-hidden="true">E</span>
+              <span class="model-card__name">Full ensemble</span>
+              <span class="model-card__meta">Stylometry + neural · LLM if gate triggers</span>
+            </button>
+            <button type="button" class="model-card" data-mode="fusion" title="No LLM API call">
+              <span class="model-card__icon" aria-hidden="true">F</span>
+              <span class="model-card__name">Fusion (no LLM)</span>
+              <span class="model-card__meta">Stylometric + neural only</span>
+            </button>
+            <button type="button" class="model-card" data-mode="stylometric" title="XGBoost / hand-crafted features">
+              <span class="model-card__icon" aria-hidden="true">S</span>
+              <span class="model-card__name">Stylometric</span>
+              <span class="model-card__meta">AST, complexity, identifiers…</span>
+            </button>
+            <button type="button" class="model-card" data-mode="codebert" title="Fine-tuned transformer">
+              <span class="model-card__icon" aria-hidden="true">N</span>
+              <span class="model-card__name">Neural encoder</span>
+              <span class="model-card__meta">Sequence model on source</span>
+            </button>
+            <button type="button" class="model-card" data-mode="llm" title="Needs API keys">
+              <span class="model-card__icon" aria-hidden="true">L</span>
+              <span class="model-card__name">LLM judge</span>
+              <span class="model-card__meta">Zero-shot audit (API)</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="why" id="why-tracecoder" aria-labelledby="why-title">
+        <div class="why__inner">
+          <h2 id="why-title" class="why__title">Why TraceCoder</h2>
+          <div class="why__grid">
+
+            <article class="why-card">
+              <div class="why-card__visual why-card__visual--signals" aria-hidden="true">
+                <div class="why-mock why-mock--grid">
+                  <span class="why-mock__pill">AST</span>
+                  <span class="why-mock__pill">Neural</span>
+                  <span class="why-mock__pill why-mock__pill--accent">LLM</span>
+                  <span class="why-mock__stat">99%</span>
+                </div>
+              </div>
+              <p class="why-card__kicker">Multi-signal detection</p>
+              <h3 class="why-card__heading">Catch AI code with layered evidence</h3>
+              <p class="why-card__body">
+                TraceCoder fuses stylometric features, a fine-tuned code encoder, and optional LLM reasoning—so
+                one suspicious submission is judged from structure, semantics, and context—not a single brittle heuristic.
+              </p>
+            </article>
+
+            <article class="why-card">
+              <div class="why-card__visual why-card__visual--audit" aria-hidden="true">
+                <div class="why-mock why-mock--doc">
+                  <div class="why-mock__bar"></div>
+                  <div class="why-mock__bar why-mock__bar--short"></div>
+                  <div class="why-mock__bar why-mock__bar--mid"></div>
+                  <div class="why-mock__risk">risk 0.82 · review</div>
+                </div>
+              </div>
+              <p class="why-card__kicker">Transparent risk scoring</p>
+              <h3 class="why-card__heading">Clear decisions for reviewers</h3>
+              <p class="why-card__body">
+                Every scan returns a calibrated <strong>0–1 risk score</strong>, an explicit policy band
+                (accept · review · hold), and human-readable signals—so contest admins know why a flag was raised.
+              </p>
+            </article>
+
+            <article class="why-card why-card--wide">
+              <div class="why-card__visual why-card__visual--contest" aria-hidden="true">
+                <div class="why-mock why-mock--split">
+                  <div class="why-mock__code">
+                    <code>def solve(): …</code>
+                  </div>
+                  <div class="why-mock__badge">problem-disjoint splits</div>
+                </div>
+              </div>
+              <p class="why-card__kicker">Built for competitive programming</p>
+              <h3 class="why-card__heading">Evaluation that respects problem boundaries</h3>
+              <p class="why-card__body">
+                Train and test on <strong>problem-disjoint</strong> partitions drawn from contest archives and
+                controlled synthetic positives—reducing template leakage and giving metrics you can defend in a thesis or production audit.
+              </p>
+            </article>
+
+          </div>
+        </div>
+      </section>
     </main>
 
-    <!-- ── Footer ── -->
-    <footer class="footer">
-      <div class="container">
-        <span>AI-Generated Code Detector · graduation project</span>
-        <span>API <code id="api-url">http://127.0.0.1:8000</code></span>
-      </div>
-    </footer>
-
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./app.js"></script>
   </body>
 </html>

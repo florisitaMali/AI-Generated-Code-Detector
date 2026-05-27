@@ -1,0 +1,1 @@
+{"score": 0.85, "signals": ["Overly clean, optimal structure with no dead code or redundancy", "Generic variable names (total_angle, area) vs. personal shorthand", "Lack of debugging artifacts or iterative approaches", "Unnaturally consistent formatting and style", "Use of a nested class (Area) which is less common in competitive programming"]}

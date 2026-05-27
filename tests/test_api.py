@@ -100,6 +100,58 @@ def test_batch_empty():
     assert resp.status_code == 400
 
 
+def test_analyze_stylometric_mode_skips_other_detectors(monkeypatch):
+    """Stylometric mode must not invoke CodeBERT or LLM."""
+    cb_calls = []
+    llm_calls = []
+
+    def fake_codebert(code):
+        cb_calls.append(code)
+        return 0.99
+
+    async def fake_llm(*args, **kwargs):
+        llm_calls.append(1)
+        return 0.99
+
+    monkeypatch.setattr("src.api.routes._get_codebert_score", fake_codebert)
+    monkeypatch.setattr("src.api.routes._get_llm_judge_score", fake_llm)
+
+    resp = client.post("/analyze", json={
+        "code": "print('hello')",
+        "language": "python",
+        "detection_mode": "stylometric",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["detection_mode"] == "stylometric"
+    comp = data["component_scores"]
+    assert comp.get("statistical") is not None
+    assert comp.get("codebert") is None
+    assert comp.get("llm_judge") is None
+    assert cb_calls == []
+    assert llm_calls == []
+
+
+def test_analyze_codebert_mode_skips_statistical(monkeypatch):
+    stat_calls = []
+
+    def fake_stat(code, language):
+        stat_calls.append((code, language))
+        return 0.1
+
+    monkeypatch.setattr("src.api.routes._get_statistical_score", fake_stat)
+
+    resp = client.post("/analyze", json={
+        "code": "print(1)",
+        "language": "python",
+        "detection_mode": "codebert",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["detection_mode"] == "codebert"
+    assert stat_calls == []
+
+
 def test_feedback():
     resp = client.post("/feedback", json={
         "code": "print(1)",

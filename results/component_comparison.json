@@ -1,0 +1,134 @@
+{
+  "generated_at_utc": "2026-05-16T22:39:58.013939+00:00",
+  "splits": {
+    "test_path": "C:\\Users\\malif\\OneDrive\\Desktop\\All\\Sem 6\\Graduation Project\\AI-GCD-Repository\\AI-Generated-Code-Detector\\data\\splits\\test.parquet",
+    "test_n": 2900,
+    "test_human": 2315,
+    "test_ai": 585,
+    "val_n": 2838
+  },
+  "settings_snapshot": {
+    "LLM_GATE_THRESHOLD": 0.45,
+    "ensemble_threshold_for_metrics": 0.5,
+    "default_weights": {
+      "statistical": 0.65,
+      "codebert": 0.2,
+      "llm_judge": 0.15
+    }
+  },
+  "methods": {
+    "stylometric_xgb": {
+      "threshold": 0.5,
+      "n": 2900,
+      "accuracy": 0.9506896551724138,
+      "precision": 0.8850174216027874,
+      "recall": 0.8683760683760684,
+      "f1": 0.8766177739430544,
+      "roc_auc": 0.9831304572557272
+    },
+    "codebert_finetuned": {
+      "threshold": 0.5,
+      "n": 2900,
+      "accuracy": 0.99,
+      "precision": 0.954248366013072,
+      "recall": 0.9982905982905983,
+      "f1": 0.9757727652464494,
+      "roc_auc": 0.9995975706558861
+    },
+    "llm_judge_subsample": null
+  },
+  "ensembles": {
+    "weighted_stat_plus_codebert": {
+      "threshold": 0.5,
+      "n": 2900,
+      "accuracy": 0.9655172413793104,
+      "precision": 0.9202772963604853,
+      "recall": 0.9076923076923077,
+      "f1": 0.9139414802065404,
+      "roc_auc": 0.9938487382547858
+    }
+  },
+  "generalization_and_overfitting": {
+    "val_metrics_threshold_0p5": {
+      "stylometric_xgb": {
+        "threshold": 0.5,
+        "n": 2838,
+        "accuracy": 0.9425651867512332,
+        "precision": 0.8747697974217311,
+        "recall": 0.8333333333333334,
+        "f1": 0.8535489667565139,
+        "roc_auc": 0.978157585321328
+      },
+      "codebert_finetuned": {
+        "threshold": 0.5,
+        "n": 2838,
+        "accuracy": 0.9869626497533475,
+        "precision": 0.9494097807757167,
+        "recall": 0.987719298245614,
+        "f1": 0.9681857265692175,
+        "roc_auc": 0.9994260342213559
+      }
+    },
+    "val_weighted_stat_plus_codebert": {
+      "threshold": 0.5,
+      "n": 2838,
+      "accuracy": 0.9545454545454546,
+      "precision": 0.9045871559633027,
+      "recall": 0.8649122807017544,
+      "f1": 0.884304932735426,
+      "roc_auc": 0.9920642656022773
+    },
+    "test_minus_val_gap": {
+      "stylometric_xgb": {
+        "accuracy_delta_test_minus_val": 0.0081,
+        "f1_delta_test_minus_val": 0.0231,
+        "roc_auc_delta_test_minus_val": 0.005
+      },
+      "codebert_finetuned": {
+        "accuracy_delta_test_minus_val": 0.003,
+        "f1_delta_test_minus_val": 0.0076,
+        "roc_auc_delta_test_minus_val": 0.0002
+      }
+    },
+    "how_to_assess_overfitting": [
+      "Train vs validation loss: if train loss keeps dropping while val loss rises, reduce epochs or increase regularization.",
+      "Validation vs test: large drop from val to test suggests distribution shift or peeking at test during development \u2014 keep test untouched until final reporting.",
+      "Use early stopping on val F1 (as in CodeBERT Trainer) so the saved checkpoint tracks validation, not training loss.",
+      "Compare stylometric vs neural tracks: tree models often generalize differently than transformers on out-of-domain contests.",
+      "Your Colab logs show train_loss ~1e-3 late vs eval_loss ~0.06\u20130.07 \u2014 expect some gap; key is stable val metrics and honest held-out test numbers."
+    ]
+  },
+  "codebert_checkpoint_meta": {
+    "base_model": "microsoft/codebert-base",
+    "max_length": 512,
+    "test_results": {
+      "eval_loss": 0.05968795344233513,
+      "eval_accuracy": 0.99,
+      "eval_f1": 0.9757727652464494,
+      "eval_auc": 0.9995972014546529,
+      "eval_runtime": 25.4778,
+      "eval_samples_per_second": 113.825,
+      "eval_steps_per_second": 3.572,
+      "epoch": 5.0
+    }
+  },
+  "colab_training_notes": {
+    "checkpoint_download": "model.safetensors ~499MB from fine-tuned CodeBERT run.",
+    "trainer_warning": "If resuming, eval_steps/save_steps in TrainingArguments (e.g. 250) may differ from trainer_state.json in an old checkpoint folder (e.g. 500). Final saved codebert_final reflects Trainer.save_model after training \u2014 use consistent args when resuming, or start from new output_dir.",
+    "observed_during_training_examples": {
+      "mid_training_eval_example_epoch_3_6": {
+        "eval_loss": "~0.072",
+        "eval_accuracy": "~0.986",
+        "eval_f1": "~0.965",
+        "eval_auc": "~0.999"
+      },
+      "final_test_after_5_epochs": {
+        "eval_loss": 0.0597,
+        "eval_accuracy": 0.99,
+        "eval_f1": 0.976,
+        "eval_auc": 0.9996
+      },
+      "train_vs_eval_gap": "Late training train_loss ~1e-3 vs eval_loss ~0.06\u20130.07 indicates some train/eval gap (normal for classification); monitor val F1 and use early stopping + held-out test."
+    }
+  }
+}

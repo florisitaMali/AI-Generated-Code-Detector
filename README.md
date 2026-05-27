@@ -63,7 +63,8 @@ python scripts/merge_codenet_datasets.py
 # Statistical baseline (XGBoost + LightGBM)
 python -m src.models.statistical_baseline
 
-# Fine-tune CodeBERT
+# Fine-tune CodeBERT (checkpoints every CODEBERT_SAVE_STEPS under models/codebert/; re-run the same command to resume)
+# Optional: CODEBERT_SAVE_STEPS=150 CODEBERT_SAVE_TOTAL_LIMIT=10 CODEBERT_PATIENCE=8
 python -m src.models.codebert_classifier
 ```
 
@@ -111,7 +112,11 @@ The vanilla HTML/CSS/JS UI in `frontend/` is mounted at `/ui` and `/` redirects 
 
 ## Evaluation
 
-All models are evaluated on a held-out test set with precision, recall, F1-score, and AUC-ROC. See `notebooks/03_model_comparison.ipynb` for detailed results.
+All models are evaluated on a held-out test set with precision, recall, F1-score, and AUC-ROC. See [RESULTS.md](RESULTS.md) for thesis-style tables and the dataset figure. Regenerate the overview chart with `python scripts/plot_dataset_summary.py` (writes `docs/figures/dataset_overview.png`). See `notebooks/03_model_comparison.ipynb` for exploratory comparisons.
+
+Focused **XGBoost (stylometric) + LLM-as-judge** evaluation (same `test.parquet`, no CodeBERT/ensemble): run `python scripts/evaluate_xgb_llm_judge.py` and see [PERFORMANCE_EVALUATION.md](PERFORMANCE_EVALUATION.md).
+
+Thesis-oriented write-ups: [IMPLEMENTATION.md](IMPLEMENTATION.md) (software), [EXPERIMENTAL_SETUP.md](EXPERIMENTAL_SETUP.md) (protocol).
 
 ## Project Structure
 

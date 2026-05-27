@@ -10,6 +10,15 @@ class AnalyzeRequest(BaseModel):
         description="Programming language: c, cpp, csharp, java, javascript, python",
     )
     problem_id: str | None = Field(None, description="Optional problem identifier for context")
+    detection_mode: str = Field(
+        "ensemble",
+        description=(
+            "How to combine detectors: "
+            "`ensemble` (default, optional LLM when gate exceeded), "
+            "`stylometric`, `codebert`, `fusion` (stat + CodeBERT, no LLM), "
+            "`llm` (LLM-as-judge only; requires API keys)"
+        ),
+    )
 
     model_config = {"json_schema_extra": {
         "examples": [{
@@ -29,6 +38,10 @@ class ComponentScores(BaseModel):
 class AnalyzeResponse(BaseModel):
     risk_score: float = Field(..., ge=0.0, le=1.0, description="Ensemble risk score")
     decision: str = Field(..., description="accept, review, or hold")
+    detection_mode: str = Field(
+        "ensemble",
+        description="Detector pipeline used for this analysis",
+    )
     component_scores: ComponentScores
     signals: list[str] = Field(default_factory=list, description="Human-readable detection signals")
 
@@ -57,3 +70,60 @@ class FeedbackRequest(BaseModel):
 class FeedbackResponse(BaseModel):
     status: str = "recorded"
     feedback_id: str
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str = Field(..., min_length=20)
+
+
+class UserPublic(BaseModel):
+    id: str
+    username: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserPublic
+
+
+class HistoryEntryResponse(BaseModel):
+    id: str
+    language: str
+    problem_id: str | None = None
+    detection_mode: str
+    risk_score: float
+    decision: str
+    code_preview: str
+    created_at: str
+
+
+class HistoryDetailResponse(HistoryEntryResponse):
+    code: str
+    component_scores: dict
+    signals: list[str]
+
+
+class HistoryListResponse(BaseModel):
+    entries: list[HistoryEntryResponse]
+
+
+class GoogleConfigResponse(BaseModel):
+    enabled: bool
+    client_id: str | None = None
+
+
+class SupabaseConfigResponse(BaseModel):
+    enabled: bool
+    url: str | None = None
+    anon_key: str | None = None
