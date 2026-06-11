@@ -15,7 +15,7 @@ class AnalyzeRequest(BaseModel):
         description=(
             "How to combine detectors: "
             "`ensemble` (default, optional LLM when gate exceeded), "
-            "`stylometric`, `codebert`, `fusion` (stat + CodeBERT, no LLM), "
+            "`stylometric`, `randomforest`, `logisticregression`, `codebert`, `graphcodebert`, `unixcoder`, `fusion` (stat + CodeBERT, no LLM), "
             "`llm` (LLM-as-judge only; requires API keys)"
         ),
     )
@@ -31,7 +31,11 @@ class AnalyzeRequest(BaseModel):
 
 class ComponentScores(BaseModel):
     statistical: float | None = Field(None, description="XGBoost baseline score")
+    random_forest: float | None = Field(None, description="Random Forest classifier score")
+    logistic_regression: float | None = Field(None, description="Logistic Regression classifier score")
     codebert: float | None = Field(None, description="CodeBERT classifier score")
+    graphcodebert: float | None = Field(None, description="GraphCodeBERT classifier score")
+    unixcoder: float | None = Field(None, description="UniXcoder classifier score")
     llm_judge: float | None = Field(None, description="LLM-as-judge score (if triggered)")
 
 
@@ -57,6 +61,12 @@ class BatchResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     models_loaded: dict[str, bool] = Field(default_factory=dict)
+    threshold_auto_accept: float = Field(
+        0.4, description="Risk scores below this are accepted as human-written"
+    )
+    threshold_flag_review: float = Field(
+        0.7, description="Risk scores below this (but above accept) are flagged for review"
+    )
 
 
 class FeedbackRequest(BaseModel):

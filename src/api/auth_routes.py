@@ -26,6 +26,7 @@ def _preview(code: str) -> str:
 
 
 def _entry_summary(entry) -> HistoryEntryResponse:
+    preview = entry.code_preview or _preview(entry.code)
     return HistoryEntryResponse(
         id=entry.id,
         language=entry.language,
@@ -33,7 +34,7 @@ def _entry_summary(entry) -> HistoryEntryResponse:
         detection_mode=entry.detection_mode,
         risk_score=entry.risk_score,
         decision=entry.decision,
-        code_preview=_preview(entry.code),
+        code_preview=preview,
         created_at=entry.created_at,
     )
 

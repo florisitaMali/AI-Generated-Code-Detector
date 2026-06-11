@@ -15,7 +15,6 @@ if (apiUrlEl) apiUrlEl.textContent = API_BASE;
 const $ = (id) => document.getElementById(id);
 const codeEl = $("code");
 const langEl = $("language");
-const problemEl = $("problem-id");
 const gutterEl = $("gutter");
 const linesEl = $("meta-lines");
 const charsEl = $("meta-chars");
@@ -32,6 +31,32 @@ const apiStatus = $("api-status");
 const apiError = $("api-error");
 
 let detectionMode = "ensemble";
+
+/** Policy thresholds — loaded from GET /health; match backend THRESHOLD_* env vars. */
+let thresholdAccept = 0.4;
+let thresholdReview = 0.7;
+
+function fmtThreshold(n) {
+  const s = Number(n).toFixed(2);
+  return s.replace(/\.?0+$/, "") || "0";
+}
+
+function applyThresholds(accept, review) {
+  if (accept != null && !Number.isNaN(Number(accept))) thresholdAccept = Number(accept);
+  if (review != null && !Number.isNaN(Number(review))) thresholdReview = Number(review);
+  const la = $("legend-accept");
+  const lr = $("legend-review");
+  const lh = $("legend-hold");
+  if (la) {
+    la.innerHTML = `<i style="background:var(--accept)"></i>0–${fmtThreshold(thresholdAccept)} accept`;
+  }
+  if (lr) {
+    lr.innerHTML = `<i style="background:var(--review)"></i>${fmtThreshold(thresholdAccept)}–${fmtThreshold(thresholdReview)} review`;
+  }
+  if (lh) {
+    lh.innerHTML = `<i style="background:var(--hold)"></i>${fmtThreshold(thresholdReview)}–1.0 hold`;
+  }
+}
 
 const AUTH_TOKEN_KEY = "tracecoder_token";
 const AUTH_USER_KEY = "tracecoder_user";
@@ -163,6 +188,39 @@ function riskClass(decision) {
   return "history__risk--hold";
 }
 
+function codePreview(text) {
+  const oneLine = (text || "").trim().replace(/\s+/g, " ");
+  if (!oneLine) return "";
+  return oneLine.length <= 120 ? oneLine : `${oneLine.slice(0, 119)}…`;
+}
+
+function prependHistoryOptimistic({ code, language, risk_score, detection_mode }) {
+  if (!historyList || !historyEmpty) return;
+  historyEmpty.hidden = true;
+  const li = document.createElement("li");
+  li.className = "history__item history__item--pending";
+  li.dataset.id = `pending-${Date.now()}`;
+  li.dataset.pending = "1";
+  const mode = detection_mode || detectionMode;
+  const decision = decisionFromScore(risk_score ?? 0);
+  li.innerHTML = `
+      <span class="history__meta">${language} · ${MODE_LABELS[mode] || mode} · just now</span>
+      <span class="history__risk ${riskClass(decision)}">${Number(risk_score).toFixed(2)}</span>
+      <button type="button" class="history__delete" title="Delete" aria-label="Delete" disabled>✕</button>
+      <span class="history__preview">${escapeHtml(codePreview(code))}</span>
+    `;
+  historyList.prepend(li);
+}
+
+let historySyncTimer = null;
+function scheduleHistorySync() {
+  if (historySyncTimer) clearTimeout(historySyncTimer);
+  historySyncTimer = setTimeout(() => {
+    historySyncTimer = null;
+    loadHistory();
+  }, 600);
+}
+
 async function loadHistory() {
   if (!getAuthToken() || !historyList) return;
   try {
@@ -225,19 +283,18 @@ async function loadHistoryEntry(id) {
     const entry = await resp.json();
     codeEl.value = entry.code || "";
     langEl.value = entry.language || "python";
-    if (entry.problem_id) problemEl.value = entry.problem_id;
-    else problemEl.value = "";
     detectionMode = entry.detection_mode || "ensemble";
     document.querySelectorAll(".model-card").forEach((b) => {
       b.classList.toggle("is-selected", (b.dataset.mode || "ensemble") === detectionMode);
     });
     syncMeta();
     setGauge(entry.risk_score ?? 0);
-    const [label, badgeCls] = decisionLabel(entry.decision);
+    const decisionUsed = decisionFromScore(entry.risk_score ?? 0);
+    const [label, badgeCls] = decisionLabel(decisionUsed);
     decisionBadge.className = `badge ${badgeCls}`;
     decisionBadge.textContent = label;
     setComponents(entry.component_scores || {}, detectionMode);
-    setSignals(entry.signals || [], entry.decision);
+    setSignals(entry.signals || [], decisionUsed);
     updateModeBadge(detectionMode);
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {
@@ -247,14 +304,25 @@ async function loadHistoryEntry(id) {
 }
 
 async function deleteHistoryEntry(id) {
+  const li = historyList?.querySelector(`.history__item[data-id="${CSS.escape(id)}"]`);
+  if (li?.dataset.pending === "1") {
+    li.remove();
+    if (historyList && !historyList.children.length && historyEmpty) historyEmpty.hidden = false;
+    return;
+  }
+  if (li) {
+    li.classList.add("history__item--removing");
+    li.remove();
+    if (historyList && !historyList.children.length && historyEmpty) historyEmpty.hidden = false;
+  }
   try {
     const resp = await fetch(`${API_BASE}/auth/history/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
     });
     if (!resp.ok) throw new Error(await resp.text());
-    await loadHistory();
   } catch (err) {
+    await loadHistory();
     apiError.hidden = false;
     apiError.textContent = `Delete failed: ${err.message}`;
   }
@@ -380,7 +448,11 @@ const MODE_COMPONENTS = {
   ensemble: ["statistical", "codebert", "llm_judge"],
   fusion: ["statistical", "codebert"],
   stylometric: ["statistical"],
+  randomforest: ["random_forest"],
+  logisticregression: ["logistic_regression"],
   codebert: ["codebert"],
+  graphcodebert: ["graphcodebert"],
+  unixcoder: ["unixcoder"],
   llm: ["llm_judge"],
 };
 
@@ -388,7 +460,11 @@ const MODE_LABELS = {
   ensemble: "Full ensemble",
   fusion: "Fusion (stat + neural)",
   stylometric: "Stylometric only",
-  codebert: "Neural encoder only",
+  randomforest: "Random Forest",
+  logisticregression: "Logistic Regression",
+  codebert: "CodeBERT",
+  graphcodebert: "GraphCodeBERT",
+  unixcoder: "UniXcoder",
   llm: "LLM judge only",
 };
 
@@ -482,20 +558,20 @@ function decisionLabel(d) {
 }
 
 function decisionFromScore(score) {
-  if (score < 0.4) return "accept";
-  if (score < 0.7) return "review";
+  if (score < thresholdAccept) return "accept";
+  if (score < thresholdReview) return "review";
   return "hold";
 }
 
 function colorForScore(s) {
-  if (s == null || s < 0.4) return "var(--accept)";
-  if (s < 0.7) return "var(--review)";
+  if (s == null || s < thresholdAccept) return "var(--accept)";
+  if (s < thresholdReview) return "var(--review)";
   return "var(--hold)";
 }
 
 function glowForScore(s) {
-  if (s == null || s < 0.4) return "var(--glow-green)";
-  if (s < 0.7) return "0 0 20px rgba(245,158,11,0.30)";
+  if (s == null || s < thresholdAccept) return "var(--glow-green)";
+  if (s < thresholdReview) return "0 0 20px rgba(245,158,11,0.30)";
   return "var(--glow-magenta)";
 }
 
@@ -594,7 +670,7 @@ async function analyze() {
       body: JSON.stringify({
         code,
         language: langEl.value,
-        problem_id: problemEl.value || null,
+        problem_id: null,
         detection_mode: requestedMode,
       }),
     });
@@ -627,7 +703,7 @@ async function analyze() {
       );
     }
     setGauge(gaugeRisk);
-    const decisionUsed = !data.detection_mode ? decisionFromScore(gaugeRisk) : data.decision;
+    const decisionUsed = decisionFromScore(gaugeRisk);
     const [label, badgeCls] = decisionLabel(decisionUsed);
     decisionBadge.className = `badge ${badgeCls}`;
     decisionBadge.textContent = label;
@@ -642,7 +718,15 @@ async function analyze() {
       "H4"
     );
     // #endregion
-    if (getAuthToken()) loadHistory();
+    if (getAuthToken()) {
+      prependHistoryOptimistic({
+        code,
+        language: langEl.value,
+        risk_score: gaugeRisk,
+        detection_mode: modeUsed,
+      });
+      scheduleHistorySync();
+    }
   } catch (err) {
     // #region agent log
     agentLog("app.js:analyze", "analyze error", { message: String(err.message).slice(0, 120) }, "H5");
@@ -671,6 +755,7 @@ async function pingHealth() {
     if (!r.ok) throw new Error(String(r.status));
     const data = await r.json();
     const loaded = Object.values(data.models_loaded || {}).filter(Boolean).length;
+    applyThresholds(data.threshold_auto_accept, data.threshold_flag_review);
     apiStatus.className = "status status--ok";
     apiStatus.textContent = `online · ${loaded} model${loaded === 1 ? "" : "s"} loaded`;
   } catch {
@@ -680,6 +765,7 @@ async function pingHealth() {
 }
 
 updateComponentVisibility(detectionMode);
+applyThresholds(thresholdAccept, thresholdReview);
 resetResult();
 syncMeta();
 updateAuthUI();

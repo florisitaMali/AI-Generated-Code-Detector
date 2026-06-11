@@ -65,18 +65,14 @@
         <article class="card" id="submission-card">
           <header class="card__header">
             <h2>Submission</h2>
-            <div class="controls">
-              <label class="field">
+            <div class="card__badges">
+              <label class="field field--inline">
                 <span>Language</span>
-                <select id="language">
+                <select id="language" class="select--badge">
                   <option value="python">Python</option>
                   <option value="cpp">C++</option>
                   <option value="java">Java</option>
                 </select>
-              </label>
-              <label class="field">
-                <span>Problem ID <span style="opacity:.5">(optional)</span></span>
-                <input id="problem-id" type="text" placeholder="p00001" />
               </label>
             </div>
           </header>
@@ -159,9 +155,9 @@
               </div>
 
               <div class="gauge__legend">
-                <span><i style="background:var(--accept)"></i>0–0.4 accept</span>
-                <span><i style="background:var(--review)"></i>0.4–0.7 review</span>
-                <span><i style="background:var(--hold)"></i>0.7–1.0 hold</span>
+                <span id="legend-accept"><i style="background:var(--accept)"></i>0–0.4 accept</span>
+                <span id="legend-review"><i style="background:var(--review)"></i>0.4–0.7 review</span>
+                <span id="legend-hold"><i style="background:var(--hold)"></i>0.7–1.0 hold</span>
               </div>
             </div>
 
@@ -174,8 +170,28 @@
                   <div class="bar__track"><div class="bar__fill"></div></div>
                   <span class="bar__value">—</span>
                 </li>
+                <li class="bar" data-key="random_forest">
+                  <span class="bar__label">Random Forest</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
+                <li class="bar" data-key="logistic_regression">
+                  <span class="bar__label">Logistic Regression</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
                 <li class="bar" data-key="codebert">
                   <span class="bar__label">CodeBERT</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
+                <li class="bar" data-key="graphcodebert">
+                  <span class="bar__label">GraphCodeBERT</span>
+                  <div class="bar__track"><div class="bar__fill"></div></div>
+                  <span class="bar__value">—</span>
+                </li>
+                <li class="bar" data-key="unixcoder">
+                  <span class="bar__label">UniXcoder</span>
                   <div class="bar__track"><div class="bar__fill"></div></div>
                   <span class="bar__value">—</span>
                 </li>
@@ -204,16 +220,6 @@
 
       </section>
 
-      <section id="history-section" class="history card" hidden>
-        <header class="card__header">
-          <h2>Your scan history</h2>
-          <button type="button" id="history-refresh" class="btn btn--ghost btn--sm">Refresh</button>
-        </header>
-        <p class="history__hint">Signed-in analyses are saved automatically. Click an entry to reload code and results.</p>
-        <ul id="history-list" class="history__list"></ul>
-        <p id="history-empty" class="history__empty" hidden>No scans yet. Run an analysis while logged in.</p>
-      </section>
-
       <section class="model-strip" aria-label="Detection method">
         <div class="model-strip__inner">
           <p class="model-cards__title">Detection method</p>
@@ -234,10 +240,30 @@
               <span class="model-card__name">Stylometric</span>
               <span class="model-card__meta">AST, complexity, identifiers…</span>
             </button>
-            <button type="button" class="model-card" data-mode="codebert" title="Fine-tuned transformer">
-              <span class="model-card__icon" aria-hidden="true">N</span>
-              <span class="model-card__name">Neural encoder</span>
-              <span class="model-card__meta">Sequence model on source</span>
+            <button type="button" class="model-card" data-mode="randomforest" title="Random Forest on stylometric features">
+              <span class="model-card__icon" aria-hidden="true">R</span>
+              <span class="model-card__name">Random Forest</span>
+              <span class="model-card__meta">Tree ensemble on AST + identifier features</span>
+            </button>
+            <button type="button" class="model-card" data-mode="logisticregression" title="Logistic Regression on stylometric features">
+              <span class="model-card__icon" aria-hidden="true">L</span>
+              <span class="model-card__name">Logistic Regression</span>
+              <span class="model-card__meta">Linear classifier on stylometric features</span>
+            </button>
+            <button type="button" class="model-card" data-mode="codebert" title="Fine-tuned CodeBERT transformer">
+              <span class="model-card__icon" aria-hidden="true">C</span>
+              <span class="model-card__name">CodeBERT</span>
+              <span class="model-card__meta">Fine-tuned code encoder</span>
+            </button>
+            <button type="button" class="model-card" data-mode="graphcodebert" title="GraphCodeBERT — data-flow enhanced">
+              <span class="model-card__icon" aria-hidden="true">G</span>
+              <span class="model-card__name">GraphCodeBERT</span>
+              <span class="model-card__meta">Data-flow + code encoder</span>
+            </button>
+            <button type="button" class="model-card" data-mode="unixcoder" title="UniXcoder — unified cross-modal encoder">
+              <span class="model-card__icon" aria-hidden="true">U</span>
+              <span class="model-card__name">UniXcoder</span>
+              <span class="model-card__meta">Cross-modal code encoder</span>
             </button>
             <button type="button" class="model-card" data-mode="llm" title="Needs API keys">
               <span class="model-card__icon" aria-hidden="true">L</span>
@@ -246,6 +272,16 @@
             </button>
           </div>
         </div>
+      </section>
+
+      <section id="history-section" class="history card" hidden>
+        <header class="card__header">
+          <h2>Your scan history</h2>
+          <button type="button" id="history-refresh" class="btn btn--ghost btn--sm">Refresh</button>
+        </header>
+        <p class="history__hint">Signed-in analyses are saved automatically. Click an entry to reload code and results.</p>
+        <ul id="history-list" class="history__list"></ul>
+        <p id="history-empty" class="history__empty" hidden>No scans yet. Run an analysis while logged in.</p>
       </section>
 
       <section class="why" id="why-tracecoder" aria-labelledby="why-title">

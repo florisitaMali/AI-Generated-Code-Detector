@@ -63,9 +63,10 @@ CODEBERT_SAVE_TOTAL_LIMIT = int(os.getenv("CODEBERT_SAVE_TOTAL_LIMIT", "8"))
 # Perplexity model
 PERPLEXITY_MODEL_NAME = "microsoft/CodeGPT-small-py"
 
-# Ensemble decision thresholds (calibrated 2026-05-02 from test-split data)
-THRESHOLD_AUTO_ACCEPT = float(os.getenv("THRESHOLD_AUTO_ACCEPT", "0.17"))
-THRESHOLD_FLAG_REVIEW = float(os.getenv("THRESHOLD_FLAG_REVIEW", "0.30"))
+# Ensemble decision thresholds (product policy; override via .env)
+# Calibrated test-split values were ~0.17 / ~0.30 — use those only if you want tighter auto-accept.
+THRESHOLD_AUTO_ACCEPT = float(os.getenv("THRESHOLD_AUTO_ACCEPT", "0.4"))
+THRESHOLD_FLAG_REVIEW = float(os.getenv("THRESHOLD_FLAG_REVIEW", "0.7"))
 
 # Minimum raw component score to trigger LLM-as-judge (separate from decision thresholds)
 LLM_GATE_THRESHOLD = float(os.getenv("LLM_GATE_THRESHOLD", "0.45"))

@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from loguru import logger
 
 import sys
@@ -29,12 +29,16 @@ from config.settings import MODELS_DIR, RAW_DIR, THRESHOLD_AUTO_ACCEPT, THRESHOL
 router = APIRouter()
 
 SUPPORTED_LANGUAGES = frozenset({"cpp", "python", "java", "c", "csharp", "javascript"})
-DETECTION_MODES = frozenset({"ensemble", "stylometric", "codebert", "fusion", "llm"})
+DETECTION_MODES = frozenset({"ensemble", "stylometric", "randomforest", "logisticregression", "codebert", "graphcodebert", "unixcoder", "fusion", "llm"})
 
 _scorer: EnsembleScorer | None = None
 _models_loaded = {
     "statistical_baseline": False,
+    "rf_baseline": False,
+    "lr_baseline": False,
     "codebert": False,
+    "graphcodebert": False,
+    "unixcoder": False,
     "ensemble": False,
 }
 
@@ -69,6 +73,28 @@ def _get_statistical_score(code: str, language: str) -> float | None:
         return None
 
 
+def _get_rf_score(code: str, language: str) -> float | None:
+    try:
+        from src.models.rf_baseline import predict
+        score = predict(code, language)
+        _models_loaded["rf_baseline"] = True
+        return score
+    except Exception as e:
+        logger.warning(f"Random Forest model unavailable: {e}")
+        return None
+
+
+def _get_lr_score(code: str, language: str) -> float | None:
+    try:
+        from src.models.lr_baseline import predict
+        score = predict(code, language)
+        _models_loaded["lr_baseline"] = True
+        return score
+    except Exception as e:
+        logger.warning(f"Logistic Regression model unavailable: {e}")
+        return None
+
+
 def _get_codebert_score(code: str) -> float | None:
     try:
         from src.models.codebert_classifier import predict
@@ -77,6 +103,28 @@ def _get_codebert_score(code: str) -> float | None:
         return score
     except Exception as e:
         logger.warning(f"CodeBERT model unavailable: {e}")
+        return None
+
+
+def _get_graphcodebert_score(code: str) -> float | None:
+    try:
+        from src.models.graphcodebert_classifier import predict
+        score = predict(code)
+        _models_loaded["graphcodebert"] = True
+        return score
+    except Exception as e:
+        logger.warning(f"GraphCodeBERT model unavailable: {e}")
+        return None
+
+
+def _get_unixcoder_score(code: str) -> float | None:
+    try:
+        from src.models.unixcoder_classifier import predict
+        score = predict(code)
+        _models_loaded["unixcoder"] = True
+        return score
+    except Exception as e:
+        logger.warning(f"UniXcoder model unavailable: {e}")
         return None
 
 
@@ -168,13 +216,25 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
     scorer = _get_scorer()
 
     stat_score: float | None = None
+    rf_score: float | None = None
+    lr_score: float | None = None
     codebert_score: float | None = None
+    graphcodebert_score: float | None = None
+    unixcoder_score: float | None = None
     llm_score: float | None = None
 
     if mode == "stylometric":
         stat_score = _get_statistical_score(req.code, req.language)
+    elif mode == "randomforest":
+        rf_score = _get_rf_score(req.code, req.language)
+    elif mode == "logisticregression":
+        lr_score = _get_lr_score(req.code, req.language)
     elif mode == "codebert":
         codebert_score = _get_codebert_score(req.code)
+    elif mode == "graphcodebert":
+        graphcodebert_score = _get_graphcodebert_score(req.code)
+    elif mode == "unixcoder":
+        unixcoder_score = _get_unixcoder_score(req.code)
     elif mode == "llm":
         llm_score = await _get_llm_judge_score(
             req.code, req.problem_id, req.language, None, None, force=True
@@ -191,8 +251,16 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
     component_scores: dict[str, float] = {}
     if stat_score is not None:
         component_scores["statistical"] = stat_score
+    if rf_score is not None:
+        component_scores["random_forest"] = rf_score
+    if lr_score is not None:
+        component_scores["logistic_regression"] = lr_score
     if codebert_score is not None:
         component_scores["codebert"] = codebert_score
+    if graphcodebert_score is not None:
+        component_scores["graphcodebert"] = graphcodebert_score
+    if unixcoder_score is not None:
+        component_scores["unixcoder"] = unixcoder_score
     if llm_score is not None:
         component_scores["llm_judge"] = llm_score
 
@@ -211,8 +279,20 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
     if mode == "stylometric" and stat_score is not None:
         risk = float(stat_score)
         decision = make_decision(risk)
+    elif mode == "randomforest" and rf_score is not None:
+        risk = float(rf_score)
+        decision = make_decision(risk)
+    elif mode == "logisticregression" and lr_score is not None:
+        risk = float(lr_score)
+        decision = make_decision(risk)
     elif mode == "codebert" and codebert_score is not None:
         risk = float(codebert_score)
+        decision = make_decision(risk)
+    elif mode == "graphcodebert" and graphcodebert_score is not None:
+        risk = float(graphcodebert_score)
+        decision = make_decision(risk)
+    elif mode == "unixcoder" and unixcoder_score is not None:
+        risk = float(unixcoder_score)
         decision = make_decision(risk)
     elif mode == "llm" and llm_score is not None:
         risk = float(llm_score)
@@ -227,8 +307,16 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         signals.append("Fusion: stylometric + CodeBERT (LLM audit disabled for this request).")
     elif mode == "stylometric":
         signals.append("Single detector: stylometric features only.")
+    elif mode == "randomforest":
+        signals.append("Single detector: Random Forest on AST, identifier, and comment features.")
+    elif mode == "logisticregression":
+        signals.append("Single detector: Logistic Regression on AST, identifier, and comment features.")
     elif mode == "codebert":
-        signals.append("Single detector: neural encoder only.")
+        signals.append("Single detector: CodeBERT neural encoder.")
+    elif mode == "graphcodebert":
+        signals.append("Single detector: GraphCodeBERT (data-flow enhanced encoder).")
+    elif mode == "unixcoder":
+        signals.append("Single detector: UniXcoder (unified cross-modal encoder).")
     elif mode == "llm":
         signals.append(
             "Single detector: LLM-as-judge (set Problem ID when possible for human-reference context)."
@@ -236,8 +324,16 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
 
     if stat_score is not None and stat_score > 0.6:
         signals.append(f"Stylometric features suggest AI origin (score={stat_score:.2f})")
+    if rf_score is not None and rf_score > 0.6:
+        signals.append(f"Random Forest flags as AI-generated (score={rf_score:.2f})")
+    if lr_score is not None and lr_score > 0.6:
+        signals.append(f"Logistic Regression flags as AI-generated (score={lr_score:.2f})")
     if codebert_score is not None and codebert_score > 0.6:
         signals.append(f"CodeBERT classifier flags as AI (score={codebert_score:.2f})")
+    if graphcodebert_score is not None and graphcodebert_score > 0.6:
+        signals.append(f"GraphCodeBERT flags as AI-generated (score={graphcodebert_score:.2f})")
+    if unixcoder_score is not None and unixcoder_score > 0.6:
+        signals.append(f"UniXcoder flags as AI-generated (score={unixcoder_score:.2f})")
     if llm_score is not None and llm_score > 0.6:
         signals.append(f"LLM-judge classifies as AI-generated (score={llm_score:.2f})")
 
@@ -247,16 +343,56 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         detection_mode=mode,
         component_scores=ComponentScores(
             statistical=stat_score,
+            random_forest=rf_score,
+            logistic_regression=lr_score,
             codebert=codebert_score,
+            graphcodebert=graphcodebert_score,
+            unixcoder=unixcoder_score,
             llm_judge=llm_score,
         ),
         signals=signals,
     )
 
 
+def _save_scan_history(
+    user_id: str,
+    *,
+    code: str,
+    language: str,
+    problem_id: str | None,
+    detection_mode: str,
+    risk_score: float,
+    decision: str,
+    component_scores: dict,
+    signals: list[str],
+) -> None:
+    try:
+        add_history(
+            user_id,
+            code=code,
+            language=language,
+            problem_id=problem_id,
+            detection_mode=detection_mode,
+            risk_score=risk_score,
+            decision=decision,
+            component_scores=component_scores,
+            signals=signals,
+        )
+        agent_log("routes.py:_save_scan_history", "history saved", {"user_id_prefix": user_id[:8]}, "H5")
+    except Exception as exc:
+        agent_log(
+            "routes.py:_save_scan_history",
+            "history save failed",
+            {"error_type": type(exc).__name__, "error": str(exc)[:200]},
+            "H5",
+        )
+        logger.warning(f"Could not save scan history: {exc}")
+
+
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(
     request: AnalyzeRequest,
+    background_tasks: BackgroundTasks,
     user: User | None = Depends(get_optional_user),
 ):
     """Analyse a single code submission for AI generation."""
@@ -279,27 +415,18 @@ async def analyze(
     )
     if user is not None:
         comp = result.component_scores.model_dump() if result.component_scores else {}
-        try:
-            add_history(
-                user.id,
-                code=request.code,
-                language=request.language,
-                problem_id=request.problem_id,
-                detection_mode=result.detection_mode,
-                risk_score=result.risk_score,
-                decision=result.decision,
-                component_scores=comp,
-                signals=result.signals,
-            )
-            agent_log("routes.py:analyze", "history saved", {"user_id_prefix": user.id[:8]}, "H5")
-        except Exception as exc:
-            agent_log(
-                "routes.py:analyze",
-                "history save failed",
-                {"error_type": type(exc).__name__, "error": str(exc)[:200]},
-                "H5",
-            )
-            logger.warning(f"Could not save scan history: {exc}")
+        background_tasks.add_task(
+            _save_scan_history,
+            user.id,
+            code=request.code,
+            language=request.language,
+            problem_id=request.problem_id,
+            detection_mode=result.detection_mode,
+            risk_score=result.risk_score,
+            decision=result.decision,
+            component_scores=comp,
+            signals=result.signals,
+        )
     return result
 
 
@@ -327,7 +454,12 @@ async def batch_analyze(request: BatchRequest):
 @router.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint."""
-    return HealthResponse(status="ok", models_loaded=_models_loaded)
+    return HealthResponse(
+        status="ok",
+        models_loaded=_models_loaded,
+        threshold_auto_accept=THRESHOLD_AUTO_ACCEPT,
+        threshold_flag_review=THRESHOLD_FLAG_REVIEW,
+    )
 
 
 @router.post("/feedback", response_model=FeedbackResponse)
