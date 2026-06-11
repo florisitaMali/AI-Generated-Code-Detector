@@ -1,6 +1,6 @@
 # AI-Generated Code Detector
 
-A multi-approach detection system that identifies AI-generated code in competitive programming submissions. Built on the IBM CodeNet dataset and designed for integration with [epokaprogrammingclub.al](https://epokaprogrammingclub.al).
+A multi-approach detection system that identifies AI-generated code in competitive programming submissions. Built on the IBM CodeNet dataset.
 
 ## Architecture
 
