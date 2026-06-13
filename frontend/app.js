@@ -445,27 +445,23 @@ $("history-refresh")?.addEventListener("click", loadHistory);
 
 /** Which component score rows are relevant per detection_mode (must match API). */
 const MODE_COMPONENTS = {
-  ensemble: ["statistical", "codebert", "llm_judge"],
-  fusion: ["statistical", "codebert"],
+  ensemble: ["statistical", "codebert"],
   stylometric: ["statistical"],
   randomforest: ["random_forest"],
   logisticregression: ["logistic_regression"],
   codebert: ["codebert"],
   graphcodebert: ["graphcodebert"],
   unixcoder: ["unixcoder"],
-  llm: ["llm_judge"],
 };
 
 const MODE_LABELS = {
   ensemble: "Full ensemble",
-  fusion: "Fusion (stat + neural)",
   stylometric: "Stylometric only",
   randomforest: "Random Forest",
   logisticregression: "Logistic Regression",
   codebert: "CodeBERT",
   graphcodebert: "GraphCodeBERT",
   unixcoder: "UniXcoder",
-  llm: "LLM judge only",
 };
 
 const componentsHeading = document.querySelector(".components h3");
@@ -689,11 +685,6 @@ async function analyze() {
         gaugeRisk = Number(comp.statistical);
       } else if (requestedMode === "codebert" && comp.codebert != null) {
         gaugeRisk = Number(comp.codebert);
-      } else if (requestedMode === "llm" && comp.llm_judge != null) {
-        gaugeRisk = Number(comp.llm_judge);
-      } else if (requestedMode === "fusion") {
-        const parts = [comp.statistical, comp.codebert].filter((v) => v != null).map(Number);
-        if (parts.length) gaugeRisk = parts.reduce((a, b) => a + b, 0) / parts.length;
       }
       modeUsed = requestedMode;
     }

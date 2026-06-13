@@ -24,12 +24,12 @@ from src.ensemble.scorer import EnsembleScorer, make_decision
 from src.auth.deps import get_optional_user
 from src.auth.store import User, add_history
 from src.debug_log import agent_log
-from config.settings import MODELS_DIR, RAW_DIR, THRESHOLD_AUTO_ACCEPT, THRESHOLD_FLAG_REVIEW, LLM_GATE_THRESHOLD
+from config.settings import MODELS_DIR, THRESHOLD_AUTO_ACCEPT, THRESHOLD_FLAG_REVIEW
 
 router = APIRouter()
 
 SUPPORTED_LANGUAGES = frozenset({"cpp", "python", "java", "c", "csharp", "javascript"})
-DETECTION_MODES = frozenset({"ensemble", "stylometric", "randomforest", "logisticregression", "codebert", "graphcodebert", "unixcoder", "fusion", "llm"})
+DETECTION_MODES = frozenset({"ensemble", "stylometric", "randomforest", "logisticregression", "codebert", "graphcodebert", "unixcoder"})
 
 _scorer: EnsembleScorer | None = None
 _models_loaded = {
@@ -151,26 +151,6 @@ def _get_behavioral_score(metadata: dict | None) -> float | None:
         return None
 
 
-def _load_human_examples(problem_id: str, language: str, max_examples: int = 3) -> list[str]:
-    """Load human reference solutions from data/raw/ for the given problem."""
-    lang_ext = {"cpp": ".cpp", "python": ".py", "java": ".java", "c": ".c",
-                "csharp": ".cs", "javascript": ".js"}
-    ext = lang_ext.get(language, "")
-    problem_dir = RAW_DIR / problem_id
-    if not problem_dir.exists():
-        return []
-    examples = []
-    for f in sorted(problem_dir.iterdir()):
-        if f.suffix == ext:
-            try:
-                examples.append(f.read_text(encoding="utf-8", errors="replace"))
-            except Exception:
-                pass
-            if len(examples) >= max_examples:
-                break
-    return examples
-
-
 def _parse_detection_mode(detection_mode: str | None) -> str:
     mode = (detection_mode or "ensemble").strip().lower()
     if mode not in DETECTION_MODES:
@@ -180,34 +160,6 @@ def _parse_detection_mode(detection_mode: str | None) -> str:
             f"Use one of: {', '.join(sorted(DETECTION_MODES))}",
         )
     return mode
-
-
-async def _get_llm_judge_score(
-    code: str,
-    problem_id: str | None,
-    language: str,
-    stat_score: float | None,
-    codebert_score: float | None = None,
-    *,
-    force: bool = False,
-) -> float | None:
-    """Call LLM-as-judge when gated, or always when ``force`` (LLM-only mode)."""
-    if not force:
-        scores = [s for s in (stat_score, codebert_score) if s is not None]
-        if not scores or max(scores) < LLM_GATE_THRESHOLD:
-            return None
-    try:
-        from src.models.llm_judge import judge
-        pid = problem_id or "unknown"
-        human_examples = _load_human_examples(pid, language) if pid != "unknown" else []
-        result = await judge(code, problem_id=pid, human_examples=human_examples)
-        score = result.get("score")
-        if score is not None:
-            logger.info(f"LLM-judge score={score:.2f} (examples={len(human_examples)}), signals={result.get('signals')}")
-        return float(score) if score is not None else None
-    except Exception as e:
-        logger.warning(f"LLM-judge unavailable: {e}")
-        return None
 
 
 async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
@@ -221,7 +173,6 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
     codebert_score: float | None = None
     graphcodebert_score: float | None = None
     unixcoder_score: float | None = None
-    llm_score: float | None = None
 
     if mode == "stylometric":
         stat_score = _get_statistical_score(req.code, req.language)
@@ -235,18 +186,10 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         graphcodebert_score = _get_graphcodebert_score(req.code)
     elif mode == "unixcoder":
         unixcoder_score = _get_unixcoder_score(req.code)
-    elif mode == "llm":
-        llm_score = await _get_llm_judge_score(
-            req.code, req.problem_id, req.language, None, None, force=True
-        )
     else:
+        # ensemble: run all available detectors and combine
         stat_score = _get_statistical_score(req.code, req.language)
         codebert_score = _get_codebert_score(req.code)
-        if mode == "ensemble":
-            llm_score = await _get_llm_judge_score(
-                req.code, req.problem_id, req.language, stat_score, codebert_score
-            )
-        # mode == "fusion": no LLM
 
     component_scores: dict[str, float] = {}
     if stat_score is not None:
@@ -261,19 +204,14 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         component_scores["graphcodebert"] = graphcodebert_score
     if unixcoder_score is not None:
         component_scores["unixcoder"] = unixcoder_score
-    if llm_score is not None:
-        component_scores["llm_judge"] = llm_score
 
     if not component_scores:
-        hint = ""
-        if mode == "llm":
-            hint = " Configure OPENAI_API_KEY / ANTHROPIC_API_KEY (and optional GOOGLE_API_KEY) for LLM mode."
         return AnalyzeResponse(
             risk_score=0.5,
             decision="review",
             detection_mode=mode,
             component_scores=ComponentScores(),
-            signals=[f"No score produced in '{mode}' mode (detector unavailable).{hint}"],
+            signals=[f"No score produced in '{mode}' mode (detector unavailable)."],
         )
 
     if mode == "stylometric" and stat_score is not None:
@@ -294,33 +232,24 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
     elif mode == "unixcoder" and unixcoder_score is not None:
         risk = float(unixcoder_score)
         decision = make_decision(risk)
-    elif mode == "llm" and llm_score is not None:
-        risk = float(llm_score)
-        decision = make_decision(risk)
     else:
         result = scorer.score(component_scores)
         risk = float(result["risk_score"])
         decision = str(result["decision"])
 
     signals: list[str] = []
-    if mode == "fusion":
-        signals.append("Fusion: stylometric + CodeBERT (LLM audit disabled for this request).")
-    elif mode == "stylometric":
-        signals.append("Single detector: stylometric features only.")
+    if mode == "stylometric":
+        signals.append("Single detector: XGBoost on stylometric features (AST, identifiers, comments).")
     elif mode == "randomforest":
-        signals.append("Single detector: Random Forest on AST, identifier, and comment features.")
+        signals.append("Single detector: Random Forest on enriched stylometric features.")
     elif mode == "logisticregression":
-        signals.append("Single detector: Logistic Regression on AST, identifier, and comment features.")
+        signals.append("Single detector: Logistic Regression on stylometric features.")
     elif mode == "codebert":
-        signals.append("Single detector: CodeBERT neural encoder.")
+        signals.append("Single detector: CodeBERT fine-tuned neural encoder.")
     elif mode == "graphcodebert":
         signals.append("Single detector: GraphCodeBERT (data-flow enhanced encoder).")
     elif mode == "unixcoder":
         signals.append("Single detector: UniXcoder (unified cross-modal encoder).")
-    elif mode == "llm":
-        signals.append(
-            "Single detector: LLM-as-judge (set Problem ID when possible for human-reference context)."
-        )
 
     if stat_score is not None and stat_score > 0.6:
         signals.append(f"Stylometric features suggest AI origin (score={stat_score:.2f})")
@@ -334,8 +263,6 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
         signals.append(f"GraphCodeBERT flags as AI-generated (score={graphcodebert_score:.2f})")
     if unixcoder_score is not None and unixcoder_score > 0.6:
         signals.append(f"UniXcoder flags as AI-generated (score={unixcoder_score:.2f})")
-    if llm_score is not None and llm_score > 0.6:
-        signals.append(f"LLM-judge classifies as AI-generated (score={llm_score:.2f})")
 
     return AnalyzeResponse(
         risk_score=risk,
@@ -348,7 +275,6 @@ async def _analyze_single(req: AnalyzeRequest) -> AnalyzeResponse:
             codebert=codebert_score,
             graphcodebert=graphcodebert_score,
             unixcoder=unixcoder_score,
-            llm_judge=llm_score,
         ),
         signals=signals,
     )

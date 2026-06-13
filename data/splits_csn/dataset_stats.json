@@ -1,0 +1,17 @@
+{
+  "source": "basakdemirok/AIGCodeSet",
+  "ai_models_covered": [
+    "CodeLlama-34B",
+    "Codestral-22B",
+    "Gemini-1.5-Flash"
+  ],
+  "total": 15152,
+  "human": 9496,
+  "ai": 5656,
+  "languages": {
+    "python": 15152
+  },
+  "train_size": 10606,
+  "val_size": 2273,
+  "test_size": 2273
+}

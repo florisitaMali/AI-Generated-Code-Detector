@@ -1,0 +1,18 @@
+{
+  "source": "OSS-forge/HumanVsAICode",
+  "ai_models_covered": [
+    "chatgpt",
+    "deepseek",
+    "qwen"
+  ],
+  "total": 78516,
+  "human": 20000,
+  "ai": 58516,
+  "languages": {
+    "python": 39258,
+    "java": 39258
+  },
+  "train_size": 54961,
+  "val_size": 11777,
+  "test_size": 11778
+}

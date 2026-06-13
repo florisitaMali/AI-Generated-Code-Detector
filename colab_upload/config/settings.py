@@ -68,6 +68,8 @@ PERPLEXITY_MODEL_NAME = "microsoft/CodeGPT-small-py"
 THRESHOLD_AUTO_ACCEPT = float(os.getenv("THRESHOLD_AUTO_ACCEPT", "0.4"))
 THRESHOLD_FLAG_REVIEW = float(os.getenv("THRESHOLD_FLAG_REVIEW", "0.7"))
 
+# Minimum raw component score to trigger LLM-as-judge (separate from decision thresholds)
+LLM_GATE_THRESHOLD = float(os.getenv("LLM_GATE_THRESHOLD", "0.45"))
 
 # API
 API_HOST = os.getenv("API_HOST", "0.0.0.0")

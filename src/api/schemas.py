@@ -13,10 +13,11 @@ class AnalyzeRequest(BaseModel):
     detection_mode: str = Field(
         "ensemble",
         description=(
-            "How to combine detectors: "
-            "`ensemble` (default, optional LLM when gate exceeded), "
-            "`stylometric`, `randomforest`, `logisticregression`, `codebert`, `graphcodebert`, `unixcoder`, `fusion` (stat + CodeBERT, no LLM), "
-            "`llm` (LLM-as-judge only; requires API keys)"
+            "Which detector to use: "
+            "`ensemble` (default — stylometric + CodeBERT combined), "
+            "`stylometric` (XGBoost on hand-crafted features), "
+            "`randomforest`, `logisticregression`, "
+            "`codebert`, `graphcodebert`, `unixcoder`"
         ),
     )
 
@@ -36,7 +37,6 @@ class ComponentScores(BaseModel):
     codebert: float | None = Field(None, description="CodeBERT classifier score")
     graphcodebert: float | None = Field(None, description="GraphCodeBERT classifier score")
     unixcoder: float | None = Field(None, description="UniXcoder classifier score")
-    llm_judge: float | None = Field(None, description="LLM-as-judge score (if triggered)")
 
 
 class AnalyzeResponse(BaseModel):

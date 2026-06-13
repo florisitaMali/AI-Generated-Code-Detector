@@ -49,7 +49,7 @@
         <h1>Detect AI-generated code</h1>
         <p class="hero__tagline">
           The dependable way to <strong>audit competitive-programming submissions</strong>—merge fast stylometry,
-          a fine-tuned neural encoder, and optional LLM reasoning into one transparent <strong>risk score</strong>.
+          a fine-tuned neural encoder into one transparent <strong>risk score</strong>.
         </p>
         <p class="hero__sub">
           Paste a submission below. The scorer returns a <strong>risk score 0–1</strong>, a policy decision
@@ -195,11 +195,6 @@
                   <div class="bar__track"><div class="bar__fill"></div></div>
                   <span class="bar__value">—</span>
                 </li>
-                <li class="bar" data-key="llm_judge">
-                  <span class="bar__label">LLM-judge</span>
-                  <div class="bar__track"><div class="bar__fill"></div></div>
-                  <span class="bar__value">—</span>
-                </li>
               </ul>
             </section>
 
@@ -228,12 +223,7 @@
             <button type="button" class="model-card is-selected" data-mode="ensemble" title="Default pipeline">
               <span class="model-card__icon" aria-hidden="true">E</span>
               <span class="model-card__name">Full ensemble</span>
-              <span class="model-card__meta">Stylometry + neural · LLM if gate triggers</span>
-            </button>
-            <button type="button" class="model-card" data-mode="fusion" title="No LLM API call">
-              <span class="model-card__icon" aria-hidden="true">F</span>
-              <span class="model-card__name">Fusion (no LLM)</span>
-              <span class="model-card__meta">Stylometric + neural only</span>
+              <span class="model-card__meta">Stylometric + neural combined</span>
             </button>
             <button type="button" class="model-card" data-mode="stylometric" title="XGBoost / hand-crafted features">
               <span class="model-card__icon" aria-hidden="true">S</span>
@@ -265,11 +255,6 @@
               <span class="model-card__name">UniXcoder</span>
               <span class="model-card__meta">Cross-modal code encoder</span>
             </button>
-            <button type="button" class="model-card" data-mode="llm" title="Needs API keys">
-              <span class="model-card__icon" aria-hidden="true">L</span>
-              <span class="model-card__name">LLM judge</span>
-              <span class="model-card__meta">Zero-shot audit (API)</span>
-            </button>
           </div>
         </div>
       </section>
@@ -294,15 +279,15 @@
                 <div class="why-mock why-mock--grid">
                   <span class="why-mock__pill">AST</span>
                   <span class="why-mock__pill">Neural</span>
-                  <span class="why-mock__pill why-mock__pill--accent">LLM</span>
+                  <span class="why-mock__pill why-mock__pill--accent">XGBoost</span>
                   <span class="why-mock__stat">99%</span>
                 </div>
               </div>
               <p class="why-card__kicker">Multi-signal detection</p>
               <h3 class="why-card__heading">Catch AI code with layered evidence</h3>
               <p class="why-card__body">
-                TraceCoder fuses stylometric features, a fine-tuned code encoder, and optional LLM reasoning—so
-                one suspicious submission is judged from structure, semantics, and context—not a single brittle heuristic.
+                TraceCoder fuses stylometric features and a fine-tuned code encoder—so
+                one suspicious submission is judged from structure, complexity, and semantics—not a single brittle heuristic.
               </p>
             </article>
 
